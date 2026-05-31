@@ -222,3 +222,28 @@
 > - **Rules return RuleFinding and never import models/db.** The engine maps RuleFinding to the persisted Finding; the dependency direction is rules -> parser only.
 >
 > Append the prompts.md turn entry in the fixed-header format. Commit (docs: harden standing contract - merge gate, fail-open, error hygiene, dependency approval, rules-authoring), push, open the PR, report CI. Do NOT merge.
+
+---
+
+## Turn 11 — 2026-05-31 · Elapsed 02:55
+
+> PR #5 merged — thanks; main now carries the hardened contract. Engine turn.
+>
+> Branch: feat/engine. Goal: an orchestrator that turns raw template content into a persisted Scan with its Findings, honoring the fail-open and single-write-path contracts now in CLAUDE.md.
+>
+> Scope (one PR):
+>
+> 1. Engine entry point (e.g. engine/scanner.py): run_scan(content: str, name: str, session: Session) -> Scan. Inject the SQLModel Session — do not create a global. Flow:
+>    - Parse via parser.parse_template(content, name). A genuine parse failure (malformed YAML, oversize, root not a mapping) raises the parser's typed error — let it propagate; do NOT swallow it into a fake empty scan. Fail-open governs bad *nodes* (the parser already degrades per-node), not an entirely unparseable file.
+>    - For each resource, for each registered rule whose resource_types matches resource.type, call rule.evaluate(resource, template) inside its own try/except. On exception: log at error level with rule id + resource logical id + exception type ONLY — never template content (error-hygiene contract) — and continue. One raising rule must not abort the scan or skip other rules/resources. Durable persistence of rule-execution errors is out of scope (would need a new column) — log only, and note it deferred.
+>    - Map each RuleFinding to a persisted Finding. RuleFinding carries rule_id, severity, resource_logical_id, message, remediation; supply resource_type from the Resource being evaluated (RuleFinding does not carry it). Respect the existing Finding schema — do not invent fields. If a required Finding column has no source from RuleFinding/rule/resource, stop and ask rather than guessing.
+>    - Finalization (single-write-path): after all findings are collected, compute the denormalized counters on Scan (finding_count + per-severity counts) exactly once and write them. Never increment incrementally. Do it in one transaction with the finding inserts.
+>    - Do NOT add columns to Scan/Finding this turn. If finalization seems to need a new field (e.g. a status), stop and ask — do not migrate silently.
+>
+> 2. Oracle integration fixtures — three realistic templates under tests/fixtures/: clean (no findings), medium (a couple of MEDIUM/HIGH issues), critical (at least one CRITICAL). These are the end-to-end fixtures deferred from the rules batch. Integration test: run_scan on each, assert the finding set and the finalized counters match expectations. Use an in-memory SQLite session with StaticPool + check_same_thread=False per CLAUDE.md.
+>
+> 3. Resilience unit test (the important one): register a deliberately-throwing rule via a fixture that adds it to the registry and removes it afterward (no registry leakage — deterministic tests). Run a scan; assert the scan still finalizes, the throwing rule yields no finding, every other rule's findings are present, and the failure was logged.
+>
+> Out of scope: scoring/grading (next turn — Scan keeps raw counts only), the FastAPI layer, the Streamlit dashboard.
+>
+> Keep coverage >= 85. Standard PR ritual per CLAUDE.md. Commit (feat: engine - orchestrate parse -> rules -> persisted scan/findings with per-rule isolation). Do NOT merge.

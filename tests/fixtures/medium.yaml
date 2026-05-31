@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Medium template — a small handful of medium/high issues; no criticals.
+Resources:
+  # IAM-002 MEDIUM: Allow with Resource '*'.
+  ScopedActionPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: scoped-action
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: s3:GetObject
+            Resource: '*'
+      Roles:
+        - AppRole
+
+  # CT-001 MEDIUM: trail without KMSKeyId.
+  AppTrail:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      IsLogging: true
+      S3BucketName: app-trail-bucket
+
+  # EC2-001 MEDIUM: volume with Encrypted: false.
+  ScratchVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      AvailabilityZone: us-east-1a
+      Size: 20
+      Encrypted: false
+
+  # SG-001 HIGH: 0.0.0.0/0 on port 443 (not SSH/RDP, no escalation).
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: web
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  AppRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
