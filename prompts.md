@@ -276,3 +276,32 @@
 > Open question to answer in the PR body (do not act on it): should grade/score be persisted on Scan for SQL-level filtering, or computed on read at the API boundary? Recommend, don't implement.
 >
 > Keep coverage >= 85. Standard PR ritual per CLAUDE.md. Commit (feat: scoring - deterministic score/grade/gate from severity counts). Do NOT merge.
+
+---
+
+## Turn 13 — 2026-05-31 · Elapsed 03:50
+
+> PR #7 merged — thanks. API turn, part 1 of 2: HTTP foundation. (Scan endpoints are part 2.)
+>
+> Branch: feat/api-foundation. Goal: stand up the FastAPI app skeleton, a per-request DB session dependency, optional API-key auth, and the two read-only endpoints that don't run a scan (/health, /rules). No scan-running endpoints this PR.
+>
+> Scope (one PR):
+>
+> 1. App factory in src/cfn_auditor/api/ (app.py or main.py — match existing layout): create_app() -> FastAPI. Wire to existing config via get_settings and the existing models/db layer — do NOT create a second engine or a global session. If the db layer doesn't already expose a session factory / engine to build a dependency on, STOP and ask rather than inventing a parallel one. Only create tables on startup if the db layer doesn't already own that — don't duplicate.
+>
+> 2. Session dependency (e.g. get_session): yields a SQLModel Session per request and closes it. Routes use Depends; no module-level session. This is the exact seam tests override with an in-memory StaticPool + check_same_thread=False engine per CLAUDE.md.
+>
+> 3. Optional API-key auth dependency, per the CLAUDE.md contract: read CFN_AUDITOR_API_KEY from settings. Unset → open (dev mode), dependency is a no-op. Set → require X-API-Key header, compare with secrets.compare_digest (constant-time); absent/mismatch → 401. Apply to /rules; do NOT gate /health (liveness must work unauthenticated).
+>
+> 4. GET /health → 200 {"status": "ok"}. No auth, no DB dependency.
+>
+> 5. GET /rules → list the registered rules from the registry (not a DB table). Define an explicit response schema (pydantic / non-table SQLModel) — do NOT return raw rule objects or ORM rows. Expose each rule's public metadata using its ACTUAL attributes (id, title, severity, resource_types, and remediation only if the Rule carries it). Read the Rule base class to confirm the fields — do not invent any.
+>
+> 6. Tests (tests/api/) with FastAPI TestClient, the session dependency overridden to an in-memory StaticPool + check_same_thread=False engine:
+>    - /health → 200 ok.
+>    - /rules → full rule set in the expected shape; assert known ids (e.g. CFN_S3_001) with their severity/resource_types.
+>    - Auth: with CFN_AUDITOR_API_KEY unset /rules is open; with it set, /rules → 401 without header, 200 with correct X-API-Key. Use monkeypatch + get_settings.cache_clear() the way the engine oversize test does so settings re-read cleanly.
+>
+> Out of scope (explicit): POST /scans and all scan run/read endpoints (next PR), scoring wiring (lands with scan-read), the Streamlit dashboard. Do NOT add columns or touch models.
+>
+> Keep coverage >= 85. Standard PR ritual per CLAUDE.md. Commit (feat: api foundation - app factory, session dependency, optional api-key auth, /health + /rules). Do NOT merge.

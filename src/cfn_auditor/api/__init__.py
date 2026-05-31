@@ -1,3 +1,5 @@
-"""FastAPI application surface. Stub — routes added in a later turn."""
+"""FastAPI application surface."""
 
-__all__: list[str] = []
+from cfn_auditor.api.app import app, create_app
+
+__all__ = ["app", "create_app"]
