@@ -123,3 +123,50 @@
 > Confirmed answers: (b) yes, Properties -> {} when absent is correct, keep it. (c) tag coverage is sufficient - the fallback is the fix, don't add more tags.
 >
 > Then commit (feat: parser layer - CFN YAML/JSON -> normalised Template/Resource), push feat/parser, open the PR to main, let CI run, report status. Do NOT merge; do NOT start rules/scoring/API.
+
+---
+
+## Turn 7 — 2026-05-31 · Elapsed 01:40
+
+> PR #2 merged. Next branch: feat/rules. Build the rule framework, then (after my review) a first batch of 10 guardrails. Static analysis only - rules read the parsed Template/Resource model, no AWS, no intrinsic evaluation.
+>
+> Architectural contract (lock this first):
+> 1. RuleFinding: a frozen dataclass DTO (rule_id, severity, resource_logical_id, message, remediation). Rules return list[RuleFinding]. Rules MUST NOT import the db/models layer - the engine (later turn) maps RuleFinding -> the persisted Finding SQLModel. Keep the parser/rules -> db direction intact.
+> 2. Severity: an enum (CRITICAL, HIGH, MEDIUM, LOW). No score weighting yet - that's the scoring turn. Just the enum.
+> 3. Registry: an explicit @register decorator appending to a module-level list, plus an all_rules() accessor. No auto-discovery magic beyond one explicit import of the rules package. The registry must raise on a duplicate rule id.
+> 4. Rule base class: stable id, title, severity, resource_types (the CFN types it applies to), and evaluate(resource, template) -> list[RuleFinding].
+>
+> Unresolved-intrinsic handling (this is part of the contract, and it shapes S3-001):
+> - Because we do not evaluate intrinsics, property values may be intrinsic dicts (e.g. {"Ref": ...}, {"Fn::If": [...]}) instead of literals.
+> - Add a shared helper, literal_or_none(value), that returns the value only if it is a literal (str/bool/int/list/dict-that-isn't-an-intrinsic) and None if it is an unresolved intrinsic.
+> - Rule semantics: (a) absence checks fire on a missing property regardless; (b) insecure-literal checks fire ONLY on the literal insecure value; (c) when the property is PRESENT but its value is an unresolved intrinsic, emit NO finding - we cannot assert it's insecure. Document this as a known limitation. Never crash on an intrinsic where a literal was expected.
+>
+> STOP after the framework + ONE reference rule (S3-001: AWS::S3::Bucket missing BucketEncryption) wired end-to-end, with fixture tests covering pass (encryption present), fail (absent), and the intrinsic case (BucketEncryption is an !If -> no finding). Surface the Rule base class, Severity enum, registry, RuleFinding DTO, literal_or_none, and S3-001 for my review. Do NOT write the other 9 rules, the engine, scoring, or API yet. Do NOT open a PR yet.
+>
+> Forward notes so the batch turn doesn't guess (do NOT implement now, just keep in mind):
+> - IAM rules must only fire on Effect: Allow statements; PolicyDocument.Statement may be a single dict or a list; Action/Resource may be a string or a list. MVP flags the literal full wildcard "*", not service-scoped "s3:*".
+> - SG rules scope to AWS::EC2::SecurityGroup inline SecurityGroupIngress; standalone AWS::EC2::SecurityGroupIngress resources are a known limitation for MVP.
+>
+> Each rule self-tests with tiny inline pass/fail templates. Do NOT build the clean/medium/critical oracle templates - those are for the engine turn.
+
+---
+
+## Turn 8 — 2026-05-31 · Elapsed 02:00
+
+> Framework approved - it's the contract I wanted. One fix before you commit, because S3-001 is the reference the other rules copy:
+>
+> 1. S3-001 evaluate has a dead branch: both the "literal_or_none(...) is None" arm and the fallthrough return []. The literal_or_none call is dead code here - S3-001 is a pure absence check, so a present BucketEncryption is a pass regardless of literal-vs-intrinsic. Strip evaluate to: if "BucketEncryption" in resource.properties -> return []; else -> return [the finding]. Keep the !If and !Ref tests (they correctly document we don't false-positive when encryption is defined via an intrinsic). Also fix the summary wording: literal_or_none is exercised by test_framework, not by S3-001 itself.
+>
+> Then commit (feat: rules framework + S3-001 missing BucketEncryption), push feat/rules, open the PR to main, let CI run, report status. Do NOT merge; do NOT start the 9-rule batch, the engine, scoring, or API yet.
+>
+> Confirmed for the NEXT turn (don't build yet) - the locked 9-rule batch, all deterministic, no heuristics:
+> - CFN_S3_002 PublicAccessBlockConfiguration missing or any flag literally false (CRITICAL)
+> - CFN_S3_003 bucket ACL PublicRead/PublicReadWrite (CRITICAL)
+> - CFN_SG_001 ingress from 0.0.0.0/0 or ::/0 - HIGH, escalates to CRITICAL when the port range covers 22 or 3389 (one rule, conditional severity)
+> - CFN_IAM_001 Allow statement with Action "*" (HIGH)
+> - CFN_IAM_002 Allow statement with Resource "*" (MEDIUM)
+> - CFN_RDS_001 StorageEncrypted false/absent (HIGH)
+> - CFN_RDS_002 PubliclyAccessible true (CRITICAL)
+> - CFN_EC2_001 EBS volume/block device unencrypted (MEDIUM)
+> - CFN_CT_001 CloudTrail trail without KMSKeyId (MEDIUM)
+> The Lambda plaintext-secret heuristic is cut from MVP (fuzzy, false-positive-prone) - defer to a labelled heuristic set post-MVP. Every value-based rule (S3_002 flags, SG port, RDS_001/002, EC2_001) must carry the full pass / insecure-literal-fires / unresolved-intrinsic-no-finding test triad.
