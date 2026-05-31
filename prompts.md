@@ -411,3 +411,25 @@
 > Tests (tests/advisor/): ALL Anthropic calls mocked — no live network in CI, ever. Assert: the retriever is deterministic and returns the relevant passage for a known rule_id; the built prompt actually contains the retrieved grounding context; a mocked LLM response is parsed into AdviceItem with source "llm:{model}"; a mocked LLM error falls back to static remediation for that finding (and the call still returns, fail-open); the factory selects Anthropic when configured and static otherwise, and falls back to static on construction failure. Deterministic only.
 >
 > Explicitly out of scope: any dashboard change (the panel already consumes the provider/source label), any /advice endpoint change, observability, and polish. Do NOT persist remediation, add columns, or touch models/engine. Keep coverage ≥ 85. Standard PR ritual per CLAUDE.md. Commit (feat: advisor llm - anthropic remediation provider grounded by in-repo RAG, behind the provider abstraction, static fallback). Do NOT merge.
+
+---
+
+## Turn 19 — 2026-05-31 · Elapsed 05:55
+
+> PR #13 merged — thanks. The advisor is complete and the product is feature-frozen. Before polish, we close the one deferred functional gap from the API phase: observability. The Turn-6 plan scoped "structured JSON logging + request IDs" but PRs #8/#9 shipped endpoints without it. This turn is that, and ONLY that — a focused middleware PR, no feature work.
+>
+> Branch: feat/observability. Prefer the standard library (logging + json) — do NOT add a logging dependency unless you can justify it; if you do, it's a new authorized dep and must be pinned + recorded in CLAUDE.md's stack table. Scope (one PR):
+>
+> Request-ID middleware on the FastAPI app: read an inbound X-Request-ID header and propagate it; when absent, generate a uuid4. Make the id available to handlers/log records for the duration of the request (e.g. contextvar), and echo it back on the response as X-Request-ID — on success AND on error responses. /health included.
+>
+> Structured JSON logging: a JSON log formatter/handler configured at app startup. Every log line is a single JSON object carrying at minimum: timestamp, level, logger/stream, request_id, method, path, status_code, duration_ms. Honor CLAUDE.md's stream+facets convention. Do NOT rip out or rewrite existing log calls beyond what's needed to route them through the JSON handler.
+>
+> Log the request lifecycle: one structured line per request (method, path, status, duration, request_id), and log 4xx/5xx outcomes at the appropriate level. CRITICAL — honor the error-hygiene contract: logs must NEVER contain template content. Log labels/ids/counts only, exactly as the API responses already do. This is the same no-leak rule applied to the log surface.
+>
+> While you're in the CI internals: the lint+types+tests run has reported annotations_count: 3 on recent green runs. Open that run, identify the 3 annotations, and either fix their root cause or document in the PR description exactly what they are and why they're benign. Do not let an unexamined annotation ride into submission.
+>
+> Out of scope: README/Docker/OpenAPI/LICENSE polish, the WWW-Authenticate cosmetic fix, the S3-002 wording tweak (all polish-turn items). Do NOT touch the engine, rules, scoring, models, the advisor, or the dashboard. Do NOT change endpoint behavior or response bodies — only ADD the X-Request-ID header and logging.
+>
+> Tests (tests/api/): assert X-Request-ID is generated when the inbound header is absent, propagated unchanged when present, and echoed on both a 200 and an error (e.g. 404/401) response. Assert a captured log record is valid JSON carrying request_id + status_code + the lifecycle facets. Assert NO template content appears in logs on a parse-failure path (the error-hygiene regression guard). Deterministic, no network.
+>
+> Keep coverage ≥ 85. Standard PR ritual per CLAUDE.md. Commit (feat: observability - request-id middleware + structured JSON request logging). Do NOT merge.
