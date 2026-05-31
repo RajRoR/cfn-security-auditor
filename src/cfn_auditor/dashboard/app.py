@@ -16,11 +16,13 @@ import pandas as pd
 import streamlit as st
 
 from cfn_auditor.dashboard.client import (
+    AdviceDisplay,
     DashboardClient,
     DashboardClientError,
     FindingRow,
     ScanDisplay,
     TrendPoint,
+    build_advice_display,
     build_findings_rows,
     build_scan_display,
     build_trend_series,
@@ -67,6 +69,41 @@ def _render_findings_table(rows: list[FindingRow]) -> None:
     def _row_style(row: pd.Series) -> list[str]:
         color_map = {r.id: r.color for r in rows}
         colour = color_map.get(int(row["id"]), "#9e9e9e")
+        return [f"background-color: {colour}; color: white;" for _ in row]
+
+    st.dataframe(frame.style.apply(_row_style, axis=1), use_container_width=True)
+
+
+def _render_advice(display: AdviceDisplay) -> None:
+    """Severity-coloured per-finding remediation table.
+
+    The "advice source" caption surfaces ``display.provider`` verbatim so the
+    UI flips automatically when the LLM provider lands behind the abstraction
+    — no dashboard change required.
+    """
+    st.caption(f"Advice source: {display.provider}")
+    if not display.rows:
+        st.success("No findings, no remediation needed.")
+        return
+
+    frame = pd.DataFrame(
+        [
+            {
+                "finding_id": r.finding_id,
+                "rule_id": r.rule_id,
+                "severity": r.severity,
+                "resource": r.resource,
+                "message": r.message,
+                "remediation": r.remediation,
+            }
+            for r in display.rows
+        ]
+    )
+
+    color_map = {r.finding_id: r.color for r in display.rows}
+
+    def _row_style(row: pd.Series) -> list[str]:
+        colour = color_map.get(int(row["finding_id"]), "#9e9e9e")
         return [f"background-color: {colour}; color: white;" for _ in row]
 
     st.dataframe(frame.style.apply(_row_style, axis=1), use_container_width=True)
@@ -131,6 +168,7 @@ def main() -> None:  # pragma: no cover - Streamlit runtime entry point
             try:
                 with DashboardClient() as client:
                     payload = client.post_scan(template_text, name=name or "template")
+                    advice_payload = client.get_advice(payload["id"])
                     history = client.list_scans()
             except DashboardClientError as exc:
                 _surface_error(exc)
@@ -139,6 +177,8 @@ def main() -> None:  # pragma: no cover - Streamlit runtime entry point
                 _render_score_panel(build_scan_display(payload))
                 st.subheader("Findings")
                 _render_findings_table(build_findings_rows(payload))
+                st.subheader("Remediation")
+                _render_advice(build_advice_display(advice_payload))
                 st.subheader("Score trend")
                 _render_trend(build_trend_series(history))
     else:

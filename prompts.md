@@ -369,3 +369,25 @@
 > Tests (tests/advisor/ + tests/api/): unit-test the static provider's rule_id → remediation mapping (assert known ids resolve, unknown handling is explicit). Endpoint round-trip through the real get_session/StaticPool seam — POST an oracle template, GET its advice, assert every finding has non-empty remediation and the documented shape. 404 path asserts no template content in the body. Auth 401/200 on the advice route. All deterministic, no network.
 >
 > Out of scope (explicit, next PR): the real LLM provider, the RAG corpus + retrieval, and the dashboard remediation panel. Do NOT add columns or persist remediation. Keep coverage ≥ 85. Standard PR ritual per CLAUDE.md. Commit (feat: advisor foundation - provider abstraction, static remediation provider, /scans/{id}/advice). Do NOT merge.
+
+---
+
+## Turn 17 — 2026-05-31 · Elapsed 05:05
+
+> PR #11 merged — thanks. The advisor foundation is live: GET /scans/{id}/advice serves per-finding remediation from the static provider. This turn surfaces it in the UI. It is a pure HTTP-client consumer change to the dashboard — it must NOT import the engine, rules, scoring, advisor, or db, and must NOT touch the API, the advisor, or models. Dashboard → HTTP → /advice. No LLM in this PR.
+>
+> Branch: feat/advice-panel. No new dependencies (httpx + streamlit already pinned). Scope (one PR):
+>
+> Client method: add a get_advice(scan_id) to src/cfn_auditor/dashboard/client.py that calls GET /scans/{id}/advice, reading the base URL from CFN_AUDITOR_API_URL and sending X-API-Key when CFN_AUDITOR_API_KEY is set — mirror the existing methods exactly (same error mapping via DashboardClientError, same auth/header handling). Map 4xx (401 auth, 404 missing scan) to clean client errors, not crashes.
+>
+> Transform: add a pure advice-payload → display-rows transform. Render the fields the endpoint actually returns (finding_id, rule_id, severity, resource_logical_id, message, remediation, source). REUSE the existing severity → color mapping — do NOT introduce a second one. Preserve the order the API returns. No Streamlit imports in client.py.
+>
+> Panel in src/cfn_auditor/dashboard/app.py: after a scan is rendered, show a remediation panel — a severity-colored table of per-finding remediation, plus a visible, honest "advice source: {source/provider}" label (today it reads "static"; when the LLM provider lands behind the abstraction this same panel will read "llm:…" with NO further dashboard change — that forward-compat is the point, do not hardcode "static" in the UI). Keep logic in the app module minimal; delegate to client.py.
+>
+> Empty/clean case: a scan with zero findings returns an empty advice list — render a friendly "no findings, no remediation needed" state, NOT an error. Never crash on a non-200; surface 401/404 as clean Streamlit messages.
+>
+> Explicitly out of scope: the real LLM provider and the RAG corpus (next PR, swapped behind the abstraction — transparent to this panel). Do NOT invent remediation text — render exactly what /advice returns, fallback string included. Do NOT touch the API, advisor, engine, or models.
+>
+> Tests (tests/dashboard/): unit-test get_advice and the advice transform with httpx.MockTransport — assert X-API-Key is sent when configured and omitted when not, the source/provider label is surfaced, order is preserved, the shared severity→color mapping is reused, and the empty-advice case is handled. No live server, no Streamlit runtime in tests. client.py stays 100%; coverage ≥ 85.
+>
+> Standard PR ritual per CLAUDE.md. Commit (feat: dashboard advice panel - per-finding remediation over /scans/{id}/advice). Do NOT merge.
