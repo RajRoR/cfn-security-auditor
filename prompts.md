@@ -349,3 +349,23 @@
 > Tests (tests/dashboard/): unit-test client.py and the transforms with the HTTP layer mocked (respx/responses or monkeypatched client) — assert the score envelope, severity→color mapping, trend series ordering (deterministic), and that X-API-Key is sent when configured and omitted when not. No live server, no Streamlit runtime in tests.
 >
 > Keep coverage ≥ 85. Standard PR ritual per CLAUDE.md. Commit (feat: dashboard - streamlit client for scan/score/findings/trend over the API). Do NOT merge.
+
+---
+
+## Turn 16 — 2026-05-31 · Elapsed 04:40
+
+> PR #10 merged — thanks; MVP is complete. Now the AI Remediation Advisor, part 1 of 2: the provider abstraction, a deterministic static-fallback provider, and the endpoint that exposes per-finding remediation. NO real LLM and NO RAG this PR — those are part 2. This is the turn that finally closes the remediation gap we deferred from persistence and the dashboard.
+>
+> Branch: feat/advisor-foundation. Scope (one PR):
+>
+> Provider abstraction (e.g. src/cfn_auditor/advisor/): a RemediationProvider interface (Protocol or ABC) with one narrow method that takes a scan's findings and returns per-finding remediation guidance. Keep the input/output as plain typed DTOs — do NOT pass ORM rows across the seam.
+>
+> A StaticRemediationProvider: deterministic, no network, returns curated remediation keyed by rule_id. SOURCE OF TRUTH: read the existing rules first — each rule already emits remediation text on the RuleFinding it produces. Lift/centralise that existing text into a single rule_id → remediation map the static provider reads; do NOT author fresh, divergent advice, and do NOT invent remediation for a rule that has none — if a rule exposes no remediation, STOP and ask. The advisor module may import rules (it's server-side); it must NOT be imported BY the engine/rules (no cycle).
+>
+> A provider factory/selector that reads config: when no LLM provider/key is configured, return the StaticRemediationProvider. This PR ships ONLY the static provider; leave a clean seam where the LLM provider plugs in next PR (factory branch + a TODO is fine). Do NOT add an LLM SDK dependency this PR.
+>
+> Endpoint: GET /scans/{scan_id}/advice — read the persisted scan via Depends(get_session), 404 (typed, no template content echoed — honor the error-hygiene contract) when absent, run the selected provider over the scan's findings, return an explicit response schema (per-finding: rule_id, severity, resource_logical_id, message, remediation, plus a provider/source label). Compute-on-read — persist NOTHING, add NO columns, touch NO models. Gate it with require_api_key like the other scan routes.
+>
+> Tests (tests/advisor/ + tests/api/): unit-test the static provider's rule_id → remediation mapping (assert known ids resolve, unknown handling is explicit). Endpoint round-trip through the real get_session/StaticPool seam — POST an oracle template, GET its advice, assert every finding has non-empty remediation and the documented shape. 404 path asserts no template content in the body. Auth 401/200 on the advice route. All deterministic, no network.
+>
+> Out of scope (explicit, next PR): the real LLM provider, the RAG corpus + retrieval, and the dashboard remediation panel. Do NOT add columns or persist remediation. Keep coverage ≥ 85. Standard PR ritual per CLAUDE.md. Commit (feat: advisor foundation - provider abstraction, static remediation provider, /scans/{id}/advice). Do NOT merge.

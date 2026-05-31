@@ -7,6 +7,7 @@ from cfn_auditor.rules.base import Rule
 from cfn_auditor.rules.finding import RuleFinding
 from cfn_auditor.rules.intrinsics import literal_or_none
 from cfn_auditor.rules.registry import register
+from cfn_auditor.rules.remediation import remediation_for
 from cfn_auditor.rules.severity import Severity
 
 __all__ = ["SecurityGroupWideOpenIngress"]
@@ -86,10 +87,7 @@ class SecurityGroupWideOpenIngress(Rule):
                         f"SecurityGroup {resource.logical_id!r} allows ingress from "
                         f"{cidr} on ports {entry.get('FromPort')}-{entry.get('ToPort')}."
                     ),
-                    remediation=(
-                        "Restrict CidrIp/CidrIpv6 to a known network range and limit the "
-                        "port range to the smallest set required."
-                    ),
+                    remediation=remediation_for(self.id),
                 )
             )
         return findings

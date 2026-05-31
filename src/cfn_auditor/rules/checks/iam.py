@@ -7,6 +7,7 @@ from cfn_auditor.rules.base import Rule
 from cfn_auditor.rules.finding import RuleFinding
 from cfn_auditor.rules.intrinsics import as_list, literal_or_none
 from cfn_auditor.rules.registry import register
+from cfn_auditor.rules.remediation import remediation_for
 from cfn_auditor.rules.severity import Severity
 
 __all__ = ["IamAllowActionWildcard", "IamAllowResourceWildcard"]
@@ -109,10 +110,7 @@ class IamAllowActionWildcard(Rule):
                                 f"IAM resource {resource.logical_id!r} has an Allow "
                                 "statement permitting Action '*' (full administrative access)."
                             ),
-                            remediation=(
-                                "Replace Action '*' with the explicit set of API actions "
-                                "the principal must perform."
-                            ),
+                            remediation=remediation_for(self.id),
                         )
                     )
         return findings
@@ -147,10 +145,7 @@ class IamAllowResourceWildcard(Rule):
                                 f"IAM resource {resource.logical_id!r} has an Allow "
                                 "statement applying to Resource '*'."
                             ),
-                            remediation=(
-                                "Replace Resource '*' with explicit ARNs scoped to the "
-                                "objects the principal must access."
-                            ),
+                            remediation=remediation_for(self.id),
                         )
                     )
         return findings

@@ -18,6 +18,8 @@ from cfn_auditor.rules import Severity as RuleSeverity
 from cfn_auditor.scoring import score as compute_score
 
 __all__ = [
+    "AdviceItemResponse",
+    "AdviceResponse",
     "FindingResponse",
     "HealthResponse",
     "RuleResponse",
@@ -140,6 +142,26 @@ class ScanDetailResponse(ScanSummaryResponse):
             score=_score_for(scan),
             findings=[FindingResponse.model_validate(f) for f in scan.findings],
         )
+
+
+class AdviceItemResponse(BaseModel):
+    """One per-finding advice entry returned by ``GET /scans/{id}/advice``."""
+
+    finding_id: int
+    rule_id: str
+    severity: Severity
+    resource_logical_id: str
+    message: str
+    remediation: str
+    source: str
+
+
+class AdviceResponse(BaseModel):
+    """Envelope returned by ``GET /scans/{id}/advice``."""
+
+    scan_id: int
+    provider: str
+    items: list[AdviceItemResponse]
 
 
 def _score_for(scan: Scan) -> ScoreResponse:

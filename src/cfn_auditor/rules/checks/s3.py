@@ -7,6 +7,7 @@ from cfn_auditor.rules.base import Rule
 from cfn_auditor.rules.finding import RuleFinding
 from cfn_auditor.rules.intrinsics import literal_or_none
 from cfn_auditor.rules.registry import register
+from cfn_auditor.rules.remediation import remediation_for
 from cfn_auditor.rules.severity import Severity
 
 __all__ = [
@@ -52,10 +53,7 @@ class S3MissingBucketEncryption(Rule):
                     f"S3 bucket {resource.logical_id!r} does not configure "
                     "BucketEncryption; objects may be stored unencrypted at rest."
                 ),
-                remediation=(
-                    "Add a BucketEncryption.ServerSideEncryptionConfiguration block "
-                    "with an SSEAlgorithm of AES256 or aws:kms."
-                ),
+                remediation=remediation_for(self.id),
             )
         ]
 
@@ -89,11 +87,7 @@ class S3MissingPublicAccessBlock(Rule):
                         "PublicAccessBlockConfiguration; the bucket may permit public ACLs "
                         "or policies."
                     ),
-                    remediation=(
-                        "Add PublicAccessBlockConfiguration with all four flags "
-                        "(BlockPublicAcls, IgnorePublicAcls, BlockPublicPolicy, "
-                        "RestrictPublicBuckets) set to true."
-                    ),
+                    remediation=remediation_for(self.id),
                 )
             ]
 
@@ -121,10 +115,7 @@ class S3MissingPublicAccessBlock(Rule):
                     f"S3 bucket {resource.logical_id!r} has public-access block flags "
                     f"set to false: {', '.join(offending)}."
                 ),
-                remediation=(
-                    "Set BlockPublicAcls, IgnorePublicAcls, BlockPublicPolicy, and "
-                    "RestrictPublicBuckets all to true."
-                ),
+                remediation=remediation_for(self.id),
             )
         ]
 
@@ -156,9 +147,6 @@ class S3PublicAcl(Rule):
                     f"S3 bucket {resource.logical_id!r} grants "
                     f"{access_control!r} via canned ACL — the bucket is publicly readable."
                 ),
-                remediation=(
-                    "Remove the AccessControl canned ACL or set it to 'Private'. "
-                    "Configure access via bucket policies and PublicAccessBlockConfiguration."
-                ),
+                remediation=remediation_for(self.id),
             )
         ]

@@ -6,6 +6,7 @@ from cfn_auditor.parser import Resource, Template
 from cfn_auditor.rules.base import Rule
 from cfn_auditor.rules.finding import RuleFinding
 from cfn_auditor.rules.registry import register
+from cfn_auditor.rules.remediation import remediation_for
 from cfn_auditor.rules.severity import Severity
 
 __all__ = ["CloudTrailMissingKmsKeyId"]
@@ -37,6 +38,6 @@ class CloudTrailMissingKmsKeyId(Rule):
                     f"CloudTrail trail {resource.logical_id!r} has no KMSKeyId; "
                     "log files are not encrypted with a customer-managed KMS key."
                 ),
-                remediation=("Set KMSKeyId to the ARN of a CMK to encrypt CloudTrail log files."),
+                remediation=remediation_for(self.id),
             )
         ]
