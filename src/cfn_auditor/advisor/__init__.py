@@ -9,12 +9,14 @@ canonical rule_id → remediation map). The reverse must NOT happen — rules
 never import the advisor.
 """
 
+from cfn_auditor.advisor.anthropic import AnthropicRemediationProvider
 from cfn_auditor.advisor.dto import AdviceItem, FindingInput
 from cfn_auditor.advisor.provider import RemediationProvider, get_provider
 from cfn_auditor.advisor.static import StaticRemediationProvider
 
 __all__ = [
     "AdviceItem",
+    "AnthropicRemediationProvider",
     "FindingInput",
     "RemediationProvider",
     "StaticRemediationProvider",

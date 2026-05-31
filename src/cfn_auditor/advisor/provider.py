@@ -2,11 +2,19 @@
 
 The :class:`RemediationProvider` Protocol is the narrow seam the advisor
 endpoint depends on. The factory (:func:`get_provider`) reads config and
-returns the active provider; today that is always
-:class:`StaticRemediationProvider` because no LLM provider is configured
-yet. The LLM branch lands in part 2.
+returns the active provider. Today supports:
+
+  * No LLM configured → :class:`StaticRemediationProvider`.
+  * ``CFN_AUDITOR_LLM_PROVIDER`` = ``anthropic`` + ``CFN_AUDITOR_LLM_API_KEY``
+    set → :class:`AnthropicRemediationProvider`.
+
+Construction failures (e.g. invalid SDK init) fall back to the static
+provider; the API never breaks because the LLM is misconfigured.
 """
 
+from __future__ import annotations
+
+import logging
 from collections.abc import Iterable
 from typing import Protocol, runtime_checkable
 
@@ -15,6 +23,8 @@ from cfn_auditor.advisor.static import StaticRemediationProvider
 from cfn_auditor.config import get_settings
 
 __all__ = ["RemediationProvider", "get_provider"]
+
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -32,22 +42,35 @@ def get_provider() -> RemediationProvider:
     """Return the active provider for the current configuration.
 
     Selection rules:
-      * No LLM provider/key configured → :class:`StaticRemediationProvider`.
-      * (Future, part 2) ``CFN_AUDITOR_LLM_PROVIDER`` set + key present →
-        the configured LLM provider, falling back to static on failure.
 
-    The settings reads are deliberately optional via ``getattr`` so adding a
-    new field in part 2 does not require a migration of the in-memory
-    :class:`~cfn_auditor.config.Settings` shape this turn.
+    * No LLM provider/key configured → :class:`StaticRemediationProvider`.
+    * ``CFN_AUDITOR_LLM_PROVIDER`` = ``anthropic`` + key present →
+      :class:`AnthropicRemediationProvider`. Construction failure (missing
+      SDK, invalid key shape) is logged and falls back to static.
     """
     settings = get_settings()
-    llm_provider_name: str | None = getattr(settings, "llm_provider", None)
-    llm_api_key: str | None = getattr(settings, "llm_api_key", None)
-    if llm_provider_name and llm_api_key:  # pragma: no cover - LLM seam (part 2)
-        # TODO(advisor part 2): construct and return the configured LLM
-        # provider here, with a fall-back to static on initialisation failure.
-        # Until that lands, we deliberately bail to static so this seam is
-        # exercised at runtime by any caller that mistakenly enables the
-        # config without the implementation.
+    llm_provider_name: str | None = settings.llm_provider
+    llm_api_key: str | None = settings.llm_api_key
+    if not llm_provider_name or not llm_api_key:
         return StaticRemediationProvider()
+
+    if llm_provider_name.lower() == "anthropic":
+        try:
+            from cfn_auditor.advisor.anthropic import AnthropicRemediationProvider
+
+            return AnthropicRemediationProvider(
+                api_key=llm_api_key,
+                model=settings.llm_model,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to construct AnthropicRemediationProvider (%s); " "falling back to static.",
+                type(exc).__name__,
+            )
+            return StaticRemediationProvider()
+
+    logger.warning(
+        "Unknown CFN_AUDITOR_LLM_PROVIDER %r; falling back to static.",
+        llm_provider_name,
+    )
     return StaticRemediationProvider()

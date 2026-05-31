@@ -43,6 +43,21 @@ class Settings(BaseSettings):
         default="INFO",
         description="Root logger level (DEBUG, INFO, WARNING, ERROR).",
     )
+    llm_provider: str | None = Field(
+        default=None,
+        description=(
+            "Selects an LLM remediation provider. Currently supported: "
+            "'anthropic'. Unset → deterministic static provider."
+        ),
+    )
+    llm_api_key: str | None = Field(
+        default=None,
+        description="Credential for the configured LLM provider.",
+    )
+    llm_model: str = Field(
+        default="claude-sonnet-4-5",
+        description="Model identifier passed to the LLM provider.",
+    )
 
 
 @lru_cache(maxsize=1)
