@@ -22,11 +22,14 @@ import httpx
 __all__ = [
     "DEFAULT_API_URL",
     "SEVERITY_COLORS",
+    "AdviceDisplay",
+    "AdviceRow",
     "DashboardClient",
     "DashboardClientError",
     "FindingRow",
     "ScanDisplay",
     "TrendPoint",
+    "build_advice_display",
     "build_findings_rows",
     "build_trend_series",
     "severity_color",
@@ -99,6 +102,29 @@ class TrendPoint:
     score: int
     grade: str
     passed: bool
+
+
+@dataclass(frozen=True)
+class AdviceRow:
+    """One per-finding remediation row, ready for the Streamlit table."""
+
+    finding_id: int
+    rule_id: str
+    severity: str
+    resource: str
+    message: str
+    remediation: str
+    source: str
+    color: str
+
+
+@dataclass(frozen=True)
+class AdviceDisplay:
+    """View-model for the remediation panel: provider label + rows."""
+
+    scan_id: int
+    provider: str
+    rows: list[AdviceRow]
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +206,35 @@ def build_trend_series(history: list[dict[str, Any]]) -> list[TrendPoint]:
     return points
 
 
+def build_advice_display(advice_payload: dict[str, Any]) -> AdviceDisplay:
+    """Project an ``AdviceResponse`` payload into the panel view-model.
+
+    The API returns items in finding order; we preserve that order so the
+    advice table aligns with the findings table the user is already reading.
+    Severity colour is derived from the shared :data:`SEVERITY_COLORS` map —
+    no second palette in the dashboard.
+    """
+    raw_items = advice_payload.get("items", [])
+    rows = [
+        AdviceRow(
+            finding_id=item["finding_id"],
+            rule_id=item["rule_id"],
+            severity=item["severity"],
+            resource=item["resource_logical_id"],
+            message=item["message"],
+            remediation=item["remediation"],
+            source=item["source"],
+            color=severity_color(item["severity"]),
+        )
+        for item in raw_items
+    ]
+    return AdviceDisplay(
+        scan_id=advice_payload["scan_id"],
+        provider=advice_payload["provider"],
+        rows=rows,
+    )
+
+
 # ---------------------------------------------------------------------------
 # HTTP client — narrow surface, raises DashboardClientError on non-2xx.
 # ---------------------------------------------------------------------------
@@ -256,6 +311,12 @@ class DashboardClient:
     def get_scan(self, scan_id: int) -> dict[str, Any]:
         """GET /scans/{id}."""
         payload = self._json(self._client.get(f"/scans/{scan_id}"))
+        assert isinstance(payload, dict)
+        return payload
+
+    def get_advice(self, scan_id: int) -> dict[str, Any]:
+        """GET /scans/{id}/advice — per-finding remediation."""
+        payload = self._json(self._client.get(f"/scans/{scan_id}/advice"))
         assert isinstance(payload, dict)
         return payload
 
