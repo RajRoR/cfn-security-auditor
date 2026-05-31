@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from cfn_auditor.api.routes import health, rules
+from cfn_auditor.api.routes import health, rules, scans
 from cfn_auditor.db import create_db_and_tables
 
 __all__ = ["app", "create_app"]
@@ -40,6 +40,7 @@ def create_app() -> FastAPI:
     )
     application.include_router(health.router)
     application.include_router(rules.router)
+    application.include_router(scans.router)
     return application
 
 
