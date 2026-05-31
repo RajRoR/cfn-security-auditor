@@ -51,3 +51,25 @@ jobs:
 
       - name: Pytest (with 85% coverage floor)
         run: uv run pytest --cov=src --cov-report=term-missing --cov-fail-under=85
+
+  docker-build:
+    name: docker build (no push)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: cfn-security-auditor:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
