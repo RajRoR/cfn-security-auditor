@@ -7,6 +7,7 @@ from cfn_auditor.rules.base import Rule
 from cfn_auditor.rules.finding import RuleFinding
 from cfn_auditor.rules.intrinsics import literal_or_none
 from cfn_auditor.rules.registry import register
+from cfn_auditor.rules.remediation import remediation_for
 from cfn_auditor.rules.severity import Severity
 
 __all__ = ["RdsPubliclyAccessible", "RdsStorageNotEncrypted"]
@@ -46,10 +47,7 @@ class RdsStorageNotEncrypted(Rule):
                     f"RDS DB instance {resource.logical_id!r} has StorageEncrypted {why}; "
                     "data at rest is not encrypted."
                 ),
-                remediation=(
-                    "Set StorageEncrypted to true and supply a KmsKeyId for a customer-"
-                    "managed key when required."
-                ),
+                remediation=remediation_for(self.id),
             )
         ]
 
@@ -81,8 +79,6 @@ class RdsPubliclyAccessible(Rule):
                     f"RDS DB instance {resource.logical_id!r} is publicly accessible; "
                     "the database is reachable from the public internet."
                 ),
-                remediation=(
-                    "Set PubliclyAccessible to false and place the instance in a private " "subnet."
-                ),
+                remediation=remediation_for(self.id),
             )
         ]

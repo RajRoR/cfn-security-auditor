@@ -21,8 +21,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, desc, select
 
+from cfn_auditor.advisor import FindingInput, get_provider
 from cfn_auditor.api.dependencies import get_session, require_api_key
 from cfn_auditor.api.schemas import (
+    AdviceItemResponse,
+    AdviceResponse,
     ScanCreateRequest,
     ScanDetailResponse,
     ScanSummaryResponse,
@@ -100,3 +103,53 @@ def get_scan(
             detail=f"Scan {scan_id} not found.",
         )
     return ScanDetailResponse.from_scan(scan)
+
+
+@router.get("/scans/{scan_id}/advice", response_model=AdviceResponse)
+def get_scan_advice(
+    scan_id: int,
+    session: SessionDep,
+) -> AdviceResponse:
+    """Return per-finding remediation advice from the active provider.
+
+    Compute-on-read: nothing is persisted. The provider is selected by
+    :func:`cfn_auditor.advisor.get_provider`; today that is always the
+    deterministic :class:`StaticRemediationProvider`. Detail messages name
+    only the scan id — never template content.
+    """
+    scan = session.get(Scan, scan_id)
+    if scan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scan {scan_id} not found.",
+        )
+
+    provider = get_provider()
+    inputs = [
+        FindingInput(
+            finding_id=f.id if f.id is not None else 0,
+            rule_id=f.rule_id,
+            severity=f.severity,
+            resource_logical_id=f.resource_logical_id,
+            resource_type=f.resource_type,
+            message=f.message,
+        )
+        for f in scan.findings
+    ]
+    items = provider.advise(inputs)
+    return AdviceResponse(
+        scan_id=scan_id,
+        provider=provider.name,
+        items=[
+            AdviceItemResponse(
+                finding_id=item.finding_id,
+                rule_id=item.rule_id,
+                severity=item.severity,
+                resource_logical_id=item.resource_logical_id,
+                message=item.message,
+                remediation=item.remediation,
+                source=item.source,
+            )
+            for item in items
+        ],
+    )
