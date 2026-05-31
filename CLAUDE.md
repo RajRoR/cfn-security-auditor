@@ -91,8 +91,9 @@ The CI workflow runs **exactly** these commands. Do not let local config diverge
 
 ## Security Standards (we eat our own dog food)
 
-- YAML: `yaml.safe_load` only. Never `yaml.load`.
+- YAML: use `yaml.safe_load`, or `yaml.load` ONLY with an explicit `SafeLoader` subclass — specifically our `cfn_auditor.parser.loader.CfnSafeLoader`, which subclasses `yaml.SafeLoader` and adds CloudFormation short-tag constructors. Never the default/Full/Unsafe loader.
 - Cap input file size (default 5 MB) before parse.
+- **Known limitation:** YAML alias-expansion (billion-laughs) amplification is NOT mitigated beyond the input size cap; `safe_load` does not bound expanded node count. Current mitigation: the `max_template_bytes` cap. Hardening (node/depth limit) tracked for the security chore.
 - Config: env vars only, via pydantic-settings. No secrets in code, no secrets in commits.
 - Never shell out. Never `eval`/`exec`.
 - API key auth: optional. If `CFN_AUDITOR_API_KEY` is unset, API is open (dev mode). If set, header `X-API-Key` required.

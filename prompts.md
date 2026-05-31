@@ -84,3 +84,42 @@
 > 4. Add to the Testing section: "The in-memory SQLite test engine must be created with StaticPool and check_same_thread=False so one shared in-memory database is visible across connections — required once TestClient/threaded API tests arrive. Otherwise use a temp-file SQLite DB per test."
 >
 > Commit as docs: tighten standing contract (...), push to chore/bootstrap, let CI re-run, and report the new CI status. Do NOT merge yet.
+
+---
+
+## Turn 5 — 2026-05-31 · Elapsed 01:05
+
+> PR #1 merged, branch protection on. New branch feat/parser. TDD - tests land in this PR.
+>
+> Build the parser layer: CloudFormation template (YAML or JSON) -> a normalized in-memory domain model. Scope tightly:
+>
+> 1. Entry point: parse_template(content: str | bytes, name: str) -> Template. Enforce the 5 MB size cap (from settings.max_template_bytes) on the raw bytes BEFORE parsing.
+>
+> 2. YAML: yaml.safe_load only, via a custom SafeLoader subclass that registers constructors for CloudFormation short-form intrinsics (!Ref, !GetAtt, !Sub, !Join, !Select, !Split, !GetAZs, !ImportValue, !Base64, !Cidr, !FindInMap, !If, !Condition, !And, !Or, !Not, !Equals) and converts each to its full-form dict ({"Ref": ...}, {"Fn::GetAtt": [...]}, etc.). Never yaml.load / full loader.
+>
+> 3. JSON: CFN can be JSON. Since JSON is valid YAML, the same CFN-aware safe loader can cover both - but prove it with a JSON fixture.
+>
+> 4. Normalized model (domain DTOs, NOT SQLModel - these are not persisted): Template(description, resources) and Resource(logical_id, type, properties: dict, raw). Define them in the parser layer so rules can import them. We do NOT evaluate Parameters/Conditions/Mappings or resolve intrinsics - we normalize short tags to full-form data and leave them as-is. This is a static structural parse.
+>
+> 5. Named domain errors (per our error-handling standard, clear messages, no sensitive data): TemplateParseError (base), MalformedTemplateError, TemplateTooLargeError, NotACloudFormationTemplateError (top-level not a mapping, or no Resources mapping).
+>
+> 6. Tests first, in the same PR, covering: YAML with short tags normalizes to full form; equivalent JSON parses to the same model; resources extracted with logical_id/type/properties; malformed YAML and malformed JSON raise MalformedTemplateError; oversize raises TemplateTooLargeError; missing/empty Resources raises NotACloudFormationTemplateError; empty input. Keep coverage >= 85.
+>
+> Stop after the parser + its tests. Show me the Template/Resource model, the short-tag loader, and the pytest output. Do NOT write rules, scoring, or API yet.
+
+---
+
+## Turn 6 — 2026-05-31 · Elapsed 01:25
+
+> Strong parser turn - approved, with changes folded into this same PR before you open it.
+>
+> CLAUDE.md (security section), two lines, both documenting this PR's parser:
+> 1. The loader is correct, but the contract still says "Never yaml.load," which this PR contradicts. Refine that line to the real intent: "Use yaml.safe_load, or yaml.load ONLY with an explicit SafeLoader subclass (our CfnSafeLoader). Never the default/Full/Unsafe loader." Bless CfnSafeLoader by name.
+> 2. Add a known-limitation note: "YAML alias-expansion (billion-laughs) amplification is NOT mitigated beyond the input size cap; safe_load does not bound expanded node count. Current mitigation: the max_template_bytes cap. Hardening (node/depth limit) tracked for the security chore." Don't implement the node limit now - just document it.
+>
+> Code (this is the one behavioral change):
+> 3. Unknown-tag resilience. Right now an unmapped CFN short tag raises ConstructorError -> MalformedTemplateError, so one exotic intrinsic makes us refuse to scan the whole template - wrong failure mode for an auditor. Register a fallback on CfnSafeLoader (add_multi_constructor for the "!" prefix) that preserves any unrecognized tag as opaque data keyed by its tag name instead of raising, and log a warning naming the tag. Specific constructors (!Ref etc.) must still take precedence. Add a test: a template with an unknown !Tag still parses, its other resources are intact, and a warning is emitted. We fail open on the one node, never closed on the file.
+>
+> Confirmed answers: (b) yes, Properties -> {} when absent is correct, keep it. (c) tag coverage is sufficient - the fallback is the fix, don't add more tags.
+>
+> Then commit (feat: parser layer - CFN YAML/JSON -> normalised Template/Resource), push feat/parser, open the PR to main, let CI run, report status. Do NOT merge; do NOT start rules/scoring/API.
