@@ -29,9 +29,9 @@ REMEDIATION_BY_RULE_ID: Final[dict[str, str]] = {
         "with an SSEAlgorithm of AES256 or aws:kms."
     ),
     "CFN_S3_002": (
-        "Add PublicAccessBlockConfiguration with all four flags "
-        "(BlockPublicAcls, IgnorePublicAcls, BlockPublicPolicy, "
-        "RestrictPublicBuckets) set to true."
+        "Ensure PublicAccessBlockConfiguration is present and that all four "
+        "flags (BlockPublicAcls, IgnorePublicAcls, BlockPublicPolicy, "
+        "RestrictPublicBuckets) are set to true."
     ),
     "CFN_S3_003": (
         "Remove the AccessControl canned ACL or set it to 'Private'. "

@@ -2,6 +2,7 @@
 
 from cfn_auditor.rules import Severity
 from cfn_auditor.rules.checks.s3 import S3MissingPublicAccessBlock
+from cfn_auditor.rules.remediation import REMEDIATION_BY_RULE_ID
 from tests.rules._helpers import evaluate_first_resource
 
 RULE = S3MissingPublicAccessBlock()
@@ -88,3 +89,49 @@ Resources:
         RestrictPublicBuckets: true
 """
     assert evaluate_first_resource(yaml_text, RULE) == []
+
+
+def test_s3_002_remediation_is_path_agnostic() -> None:
+    """Remediation reads correctly for both trigger paths.
+
+    S3-002 fires on either (a) PublicAccessBlockConfiguration missing OR
+    (b) any of the four flags literally false. The static remediation must
+    cover both — no "Add ..." phrasing that implies only the missing-block
+    path applies.
+    """
+    text = REMEDIATION_BY_RULE_ID["CFN_S3_002"]
+    # Names every flag the rule inspects.
+    for flag in (
+        "BlockPublicAcls",
+        "IgnorePublicAcls",
+        "BlockPublicPolicy",
+        "RestrictPublicBuckets",
+    ):
+        assert flag in text
+    # Reads correctly when the block is already present (path b).
+    assert "Ensure" in text or "Make sure" in text or "all four flags" in text
+    # Does not lock the reader into the missing-block reading.
+    assert not text.lower().startswith("add publicaccessblockconfiguration")
+    # And both code-path findings expose the same string.
+    missing_block_yaml = """\
+Resources:
+  R:
+    Type: AWS::S3::Bucket
+    Properties: {}
+"""
+    flag_false_yaml = """\
+Resources:
+  R:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+"""
+    a = evaluate_first_resource(missing_block_yaml, RULE)
+    b = evaluate_first_resource(flag_false_yaml, RULE)
+    assert len(a) == 1 and len(b) == 1
+    assert a[0].remediation == text
+    assert b[0].remediation == text
