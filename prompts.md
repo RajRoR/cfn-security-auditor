@@ -68,3 +68,19 @@
 > Then make it a standing rule in CLAUDE.md so it never drifts again: "Every prompts.md entry is logged with the turn number, date, and cumulative Elapsed Time in a fixed header, and the prompt verbatim. The Elapsed value reported in the chat footer and the one written to prompts.md must match." That keeps the chat footer and the file in sync from one source.
 >
 > Then proceed with the commit / push / PR as already approved.
+
+---
+
+## Turn 4 — 2026-05-31 · Elapsed 00:48
+
+> Reviewed the PR off GitHub, not just your summary. CI is green – nice. Four fixes to CLAUDE.md before we merge, so the standing contract is self-consistent from commit one. All on chore/bootstrap, into PR #1.
+>
+> 1. The Stack table is stale: it still pins ruff 0.8.x and black 24.10.x, but pyproject pins ruff 0.14.x and black 25.1.x (the bump we approved). Update the table to match pyproject exactly, and double-check every other row matches the real pins too.
+>
+> 2. Security section says the API key env var is API_KEY. With env_prefix CFN_AUDITOR_, it's actually CFN_AUDITOR_API_KEY. Correct it.
+>
+> 3. Add the standing data-model note under the models section: "The denormalized severity counts on Scan (finding_count, critical_count, etc.) are a single-write-path field: derived from a scan's findings and written once at scan finalization, never hand-maintained."
+>
+> 4. Add to the Testing section: "The in-memory SQLite test engine must be created with StaticPool and check_same_thread=False so one shared in-memory database is visible across connections — required once TestClient/threaded API tests arrive. Otherwise use a temp-file SQLite DB per test."
+>
+> Commit as docs: tighten standing contract (...), push to chore/bootstrap, let CI re-run, and report the new CI status. Do NOT merge yet.

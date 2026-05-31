@@ -23,6 +23,12 @@ config       (pydantic-settings; leaf module, imported by anyone)
 
 **Rule:** lower layers MUST NOT import from upper layers. `config` is a leaf and may be imported by any layer. The dashboard (Streamlit) consumes the API over HTTP — it does not import the engine.
 
+## Data Model
+
+The two persisted entities are `Scan` and `Finding` (one-to-many, cascading delete). Resource identity (`resource_logical_id`, `resource_type`) lives on `Finding`; there is no separate `Asset` table. Rules live in code as auto-registered classes and are exposed via `GET /rules` from the registry — they are not a DB table.
+
+**Standing note:** the denormalized severity counts on `Scan` (`finding_count`, `critical_count`, `high_count`, `medium_count`, `low_count`, `info_count`) are a **single-write-path field**: derived from a scan's findings and written **once at scan finalization**, never hand-maintained. Anything that mutates findings must either go through that finalization path or be considered a bug.
+
 ## Stack (pinned)
 
 | Layer        | Tool              | Pinned Version |
@@ -39,8 +45,8 @@ config       (pydantic-settings; leaf module, imported by anyone)
 | HTTP client  | httpx             | 0.28.x         |
 | Tests        | pytest            | 8.3.x          |
 | Coverage     | pytest-cov        | 6.0.x          |
-| Lint         | ruff              | 0.8.x          |
-| Format       | black             | 24.10.x        |
+| Lint         | ruff              | 0.14.x         |
+| Format       | black             | 25.1.x         |
 | Types        | mypy              | 1.13.x         |
 | Pre-commit   | pre-commit        | 4.0.x          |
 
@@ -74,6 +80,7 @@ The CI workflow runs **exactly** these commands. Do not let local config diverge
 - Coverage floor is **85%**, enforced via `--cov-fail-under=85` in CI.
 - Test layout mirrors source: `tests/<layer>/test_<module>.py`.
 - Use `tmp_path` for file fixtures; never write outside the test sandbox.
+- **In-memory SQLite test engines** must be created with `StaticPool` and `connect_args={"check_same_thread": False}` so a single shared in-memory database is visible across connections — required once `TestClient`/threaded API tests arrive. If `StaticPool` is not viable (e.g. parallel tests need isolation), use a temp-file SQLite DB per test instead.
 
 ## Commits & PRs
 
@@ -88,7 +95,7 @@ The CI workflow runs **exactly** these commands. Do not let local config diverge
 - Cap input file size (default 5 MB) before parse.
 - Config: env vars only, via pydantic-settings. No secrets in code, no secrets in commits.
 - Never shell out. Never `eval`/`exec`.
-- API key auth: optional. If `API_KEY` is unset, API is open (dev mode). If set, header `X-API-Key` required.
+- API key auth: optional. If `CFN_AUDITOR_API_KEY` is unset, API is open (dev mode). If set, header `X-API-Key` required.
 - Rule code is trusted (in-repo); never load rules from user-supplied paths or remote URLs.
 
 ## The Vibe-Coding Rule
