@@ -327,3 +327,25 @@
 > Tests (tests/api/): real round-trip through get_session (the seam #8 only proved via override) using the StaticPool engine — POST each oracle template (clean/medium/critical) and assert counts + score/grade/gate match the scoring oracles (100/A/pass, 50/F/pass, 0/F/fail). GET list ordering is deterministic. GET {id} 404 path asserts no template content in the body. Auth 401/200 on a scan route.
 >
 > Out of scope: Streamlit dashboard, the AI Remediation Advisor, Docker/README polish. Do NOT add columns or persist score/grade. Keep coverage >= 85. Standard PR ritual per CLAUDE.md. Commit (feat: api scans - run/list/get scans with compute-on-read scoring + error mapping). Do NOT merge.
+
+---
+
+## Turn 15 — 2026-05-31 · Elapsed 04:25
+
+> PR #9 merged — thanks. Backend is feature-complete. This turn: the Streamlit dashboard, the visible demo layer. It is a pure HTTP client of the API we just built — it must NOT import the engine, rules, scoring, or db directly. Dashboard → HTTP → API → engine. That keeps the layering honest and proves the API in a real client.
+>
+> Branch: feat/dashboard. New dependencies authorized this turn (record them in CLAUDE.md's stack table per the no-silent-deps rule): streamlit, and one HTTP client (httpx or requests — your call, pick one and be consistent). Add via the package manager, not hand-edited.
+>
+> Structure — split testable logic from UI glue so coverage ≥ 85 holds:
+>
+> A pure client/transform module (e.g. src/cfn_auditor/dashboard/client.py): functions that call the API (POST /scans, GET /scans, GET /scans/{id}, GET /rules), read the base URL from CFN_AUDITOR_API_URL (default http://localhost:8000) and send X-API-Key when CFN_AUDITOR_API_KEY is set. Plus pure transforms: scan payload → display rows, history payloads → trend series, severity → color. No Streamlit imports in this module.
+>
+> A thin Streamlit app (e.g. src/cfn_auditor/dashboard/app.py, run via streamlit run): paste-or-upload a template, POST it, then render — score gauge (score + letter grade + PASS/FAIL gate badge, gate driven by passed), a counts summary, and a severity-colored findings table (id, rule_id, severity, resource, message — the fields the API actually returns). A trend section that pulls GET /scans history and charts score over time. Keep logic in the app module to a minimum; delegate to client.py.
+>
+> Error UX: surface API 4xx (400/413 bad template, 401 auth) as clean Streamlit messages. Never crash on a non-200.
+>
+> Explicitly out of scope: remediation snippets — the API does not expose remediation yet; that panel lands with the AI Remediation Advisor turn. Do NOT invent remediation text and do NOT add a remediation field anywhere. Also out of scope: Docker/README polish, the advisor itself. Do NOT touch models, the engine, or the API surface.
+>
+> Tests (tests/dashboard/): unit-test client.py and the transforms with the HTTP layer mocked (respx/responses or monkeypatched client) — assert the score envelope, severity→color mapping, trend series ordering (deterministic), and that X-API-Key is sent when configured and omitted when not. No live server, no Streamlit runtime in tests.
+>
+> Keep coverage ≥ 85. Standard PR ritual per CLAUDE.md. Commit (feat: dashboard - streamlit client for scan/score/findings/trend over the API). Do NOT merge.

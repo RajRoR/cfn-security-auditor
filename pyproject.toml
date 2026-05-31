@@ -75,7 +75,7 @@ warn_return_any = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["yaml.*"]
+module = ["yaml.*", "pandas.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
@@ -87,6 +87,11 @@ pythonpath = ["src"]
 [tool.coverage.run]
 source = ["src/cfn_auditor"]
 branch = true
+omit = [
+    # Streamlit entry point — runs only inside the Streamlit runtime; tested
+    # indirectly via the pure transforms + HTTP client modules.
+    "src/cfn_auditor/dashboard/app.py",
+]
 
 [tool.coverage.report]
 show_missing = true
