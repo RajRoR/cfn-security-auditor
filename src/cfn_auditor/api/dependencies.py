@@ -39,8 +39,12 @@ def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
         return
     supplied = x_api_key or ""
     if not secrets.compare_digest(supplied, expected):
+        # Intentionally no WWW-Authenticate header: that header is reserved
+        # for IANA-registered HTTP auth schemes (Basic, Bearer, ...). The
+        # custom X-API-Key gate is not a registered scheme, so emitting
+        # "WWW-Authenticate: X-API-Key" was non-standard and could confuse
+        # well-behaved clients.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API key.",
-            headers={"WWW-Authenticate": "X-API-Key"},
         )

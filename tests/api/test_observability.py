@@ -209,6 +209,47 @@ def test_json_formatter_includes_extras_and_drops_internals() -> None:
     assert "args" not in payload  # standard logging attr is dropped
 
 
+def test_unhandled_exception_yields_500_with_request_id_and_one_access_log(
+    app: object, captured_logs: list[str]
+) -> None:
+    """A genuine unhandled exception still echoes X-Request-ID on the 500.
+
+    Uses TestClient(raise_server_exceptions=False) so the framework returns
+    the produced 500 response instead of re-raising into the test. The
+    failing handler raises a synthetic exception via a route override; the
+    registered exception handler converts it into a 500 carrying the
+    documented body. The middleware adds X-Request-ID and the lifecycle log
+    must fire exactly once with status_code 500 at ERROR level.
+    """
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    fastapi_app: FastAPI = app  # type: ignore[assignment]
+
+    @fastapi_app.get("/__test_boom")
+    def _boom() -> None:
+        raise RuntimeError("synthetic")
+
+    with TestClient(fastapi_app, raise_server_exceptions=False) as bad_client:
+        response = bad_client.get("/__test_boom", headers={REQUEST_ID_HEADER: "trace-boom"})
+    assert response.status_code == 500
+    assert response.headers.get(REQUEST_ID_HEADER) == "trace-boom"
+    assert response.json() == {"detail": "Internal Server Error"}
+
+    access_lines = [
+        json.loads(raw)
+        for raw in captured_logs
+        if json.loads(raw).get("logger") == "cfn_auditor.api.access"
+        and json.loads(raw).get("message") == "request.complete"
+        and json.loads(raw).get("path") == "/__test_boom"
+    ]
+    assert len(access_lines) == 1, f"expected exactly one lifecycle log, got {access_lines}"
+    line = access_lines[0]
+    assert line["status_code"] == 500
+    assert line["level"] == "ERROR"
+    assert line["request_id"] == "trace-boom"
+
+
 def test_request_id_filter_annotates_records_without_request_id() -> None:
     """The filter sets ``record.request_id`` from the contextvar when missing."""
     record = logging.LogRecord(

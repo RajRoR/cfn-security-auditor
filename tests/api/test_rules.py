@@ -72,7 +72,9 @@ def test_rules_requires_api_key_when_configured(
         unauth = client.get("/rules")
         assert unauth.status_code == 401
         assert unauth.json()["detail"] == "Invalid or missing API key."
-        assert unauth.headers.get("WWW-Authenticate") == "X-API-Key"
+        # WWW-Authenticate is reserved for IANA HTTP auth schemes; X-API-Key
+        # is not one. The 401 must NOT carry a non-standard challenge header.
+        assert "WWW-Authenticate" not in unauth.headers
 
         wrong = client.get("/rules", headers={"X-API-Key": "wrong"})
         assert wrong.status_code == 401

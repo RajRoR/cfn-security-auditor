@@ -33,7 +33,7 @@ from datetime import UTC, datetime
 from fastapi import FastAPI
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
 __all__ = [
@@ -159,27 +159,25 @@ class RequestLifecycleMiddleware(BaseHTTPMiddleware):
         """Run a single request through the lifecycle log + id-echo path."""
         inbound_id = request.headers.get(REQUEST_ID_HEADER)
         request_id = inbound_id or uuid.uuid4().hex
+        # Stamp on the scope too: BaseHTTPMiddleware unwinds before
+        # Starlette's ServerErrorMiddleware runs the registered exception
+        # handler, so the contextvar may already be reset by then. Reading
+        # the scope is the reliable hand-off path.
+        request.scope["cfn_auditor.request_id"] = request_id
         token = _request_id_var.set(request_id)
         start = time.perf_counter()
         status_code = 500
 
         try:
+            # Unhandled exceptions are converted to a 500 Response by the
+            # registered ``_unhandled_exception_handler``; the response
+            # already carries X-Request-ID, but we still set it here so any
+            # path that bypasses that handler (manual middleware composition
+            # in tests) gets the same echo behaviour.
             response: Response = await call_next(request)
             status_code = response.status_code
             response.headers[REQUEST_ID_HEADER] = request_id
             return response
-        except Exception:
-            self._logger.exception(
-                "Unhandled exception during request.",
-                extra={
-                    "method": request.method,
-                    "path": request.url.path,
-                    "status_code": 500,
-                    "request_id": request_id,
-                    "duration_ms": int((time.perf_counter() - start) * 1000),
-                },
-            )
-            raise
         finally:
             duration_ms = int((time.perf_counter() - start) * 1000)
             level = logging.INFO
@@ -201,7 +199,39 @@ class RequestLifecycleMiddleware(BaseHTTPMiddleware):
             _request_id_var.reset(token)
 
 
+async def _unhandled_exception_handler(request: Request, exc: Exception) -> Response:
+    """Convert an unhandled exception into a 500 that carries ``X-Request-ID``.
+
+    Without this handler the exception re-raises past
+    :class:`RequestLifecycleMiddleware` to Starlette's ``ServerErrorMiddleware``,
+    which emits a default 500 with no headers from our middleware (the
+    contextvar still carries the id, but the default response never sees
+    it). Registering a handler keeps the response under our control: the
+    body is the documented JSON shape, ``X-Request-ID`` is present, and
+    only one access-log line fires (from the middleware's ``finally``).
+    """
+    scope_id = request.scope.get("cfn_auditor.request_id")
+    request_id = scope_id if isinstance(scope_id, str) else (get_request_id() or uuid.uuid4().hex)
+    headers = {REQUEST_ID_HEADER: request_id}
+    logging.getLogger(_LIFECYCLE_LOGGER).exception(
+        "Unhandled exception during request.",
+        extra={
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": 500,
+            "request_id": request_id,
+            "exception_type": type(exc).__name__,
+        },
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error"},
+        headers=headers,
+    )
+
+
 def install_observability(app: FastAPI) -> None:
     """Attach the middleware and ensure JSON logging is configured."""
     configure_logging()
     app.add_middleware(RequestLifecycleMiddleware)
+    app.add_exception_handler(Exception, _unhandled_exception_handler)

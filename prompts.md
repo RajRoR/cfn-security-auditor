@@ -433,3 +433,23 @@
 > Tests (tests/api/): assert X-Request-ID is generated when the inbound header is absent, propagated unchanged when present, and echoed on both a 200 and an error (e.g. 404/401) response. Assert a captured log record is valid JSON carrying request_id + status_code + the lifecycle facets. Assert NO template content appears in logs on a parse-failure path (the error-hygiene regression guard). Deterministic, no network.
 >
 > Keep coverage ≥ 85. Standard PR ritual per CLAUDE.md. Commit (feat: observability - request-id middleware + structured JSON request logging). Do NOT merge.
+
+---
+
+## Turn 20 — 2026-05-31 · Elapsed 06:10
+
+> PR #14 merged — thanks. Observability is complete and we're in wrap-up. Before the docs/Docker polish, we clear the three small correctness loose ends we've been carrying, as ONE focused PR. No new features, no docs, no Docker. Each tweak gets a test. These land first because the OpenAPI export and README (next PR) must document final behavior.
+>
+> Branch: fix/correctness-loose-ends. No new dependencies. Scope (one PR, three small fixes):
+>
+> S3-002 remediation wording. The canonical static remediation for S3-002 is phrased for one trigger path but the rule fires on two (a public ACL present, AND a PublicAccessBlock flag set to false). Neutralise the remediation text in the static remediation map so it reads correctly for BOTH paths — generic, accurate guidance, no implication that only one condition applies. Update only the S3-002 entry and the test asserting its text. Do NOT change the rule's detection logic, id, severity, or message.
+>
+> WWW-Authenticate cosmetic. The 401 from the optional API-key gate (PR #8) returns a non-standard WWW-Authenticate: X-API-Key header. WWW-Authenticate is defined for standard HTTP auth schemes; X-API-Key is not one. Remove that header from the 401 response (preferred), keeping the 401 status, the JSON error body, and all auth behavior byte-for-byte identical otherwise. Update the auth test to assert the header is gone (and that status/body are unchanged).
+>
+> X-Request-ID on genuine 500s. On #14, a truly unhandled exception re-raises past RequestLifecycleMiddleware to Starlette's ServerErrorMiddleware, so the 500 response does NOT carry X-Request-ID (the lifecycle log line still fires — that part is fine). Make the "echo on every response" claim true: attach the current request_id to the 500 response too — e.g. a minimal exception handler / outer wrap that reads the contextvar and sets X-Request-ID on the 500. Do NOT swallow the exception or change the 500 body; only add the header. The lifecycle log must still fire exactly once.
+>
+> Out of scope: README/Docker/OpenAPI/LICENSE/Makefile (next PR), any engine/scoring/models/dashboard change, any new rule or endpoint. Do NOT alter response bodies or status codes anywhere except removing the one header in item 2.
+>
+> Tests: (1) assert the S3-002 remediation text reads correctly and isn't tied to a single trigger condition; (2) assert the 401 no longer carries WWW-Authenticate and that status + body are unchanged; (3) assert a forced unhandled exception yields a 500 that carries X-Request-ID and that exactly one access-log line is emitted — use a TestClient with raise_server_exceptions=False and monkeypatch a handler/dependency to raise. Deterministic, no network.
+>
+> Keep coverage ≥ 85. Standard PR ritual per CLAUDE.md. Commit (fix: correctness loose ends - S3-002 remediation wording, drop non-standard WWW-Authenticate, echo X-Request-ID on 500). Do NOT merge.
