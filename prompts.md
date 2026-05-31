@@ -453,3 +453,22 @@
 > Tests: (1) assert the S3-002 remediation text reads correctly and isn't tied to a single trigger condition; (2) assert the 401 no longer carries WWW-Authenticate and that status + body are unchanged; (3) assert a forced unhandled exception yields a 500 that carries X-Request-ID and that exactly one access-log line is emitted — use a TestClient with raise_server_exceptions=False and monkeypatch a handler/dependency to raise. Deterministic, no network.
 >
 > Keep coverage ≥ 85. Standard PR ritual per CLAUDE.md. Commit (fix: correctness loose ends - S3-002 remediation wording, drop non-standard WWW-Authenticate, echo X-Request-ID on 500). Do NOT merge.
+
+---
+
+## Turn 21 — 2026-05-31 · Elapsed 06:25
+
+> PR #15 merged — thanks. Behavior is now frozen. This is the docs/infra polish PR: NO src/ behavior changes. If you find yourself editing anything under src/cfn_auditor/ beyond docstrings, stop — it doesn't belong here.
+>
+> Branch: docs/polish-and-packaging. Scope (one PR):
+>
+> README.md: what it is, the architecture (parser → rules → engine → persist → score → API → dashboard, plus the advisor and observability layers), a runnable quickstart (uv install, run the API, run the dashboard, scan a sample template), the auth model (optional X-API-Key; 401 returns {"detail": …} with NO WWW-Authenticate header), and the error envelope ({"detail": …} on 400/401/404/413/500). Document the LLM advisor as optional and fail-open (static fallback when no key).
+> Dockerfile (API) + a docker-compose.yml wiring API + dashboard, with CFN_AUDITOR_API_URL pointing the dashboard at the API service. Document the compose up flow in the README.
+> CI: add a docker build job (build only, no push) so the image can't silently rot. Keep it in the existing workflow; don't disturb the green lint+types+tests job.
+> OpenAPI export: a small committed artifact (e.g. docs/openapi.json) generated from the live app, plus a one-command way to regenerate it. It must reflect final behavior (no WWW-Authenticate; {"detail": …} on 500).
+> LICENSE: MIT.
+> Makefile: convenience targets (install, test, lint, run-api, run-dashboard, openapi, docker-build) — thin wrappers over what already works; no new behavior.
+> Audit-trail section (README or docs/AUDIT_TRAIL.md): map prompts.md turns → the PRs they produced (#1–#15), so a reviewer can trace each turn to its merged change. This is the "human-in-the-loop, Claude-never-merges" story made legible.
+> Out of scope: any rule/engine/scoring/model/API/advisor/dashboard behavior change; the deck (next turn). No new runtime dependencies (dev/tooling only if unavoidable, pinned + recorded in CLAUDE.md).
+>
+> Tests: if the OpenAPI export is scripted, add a tiny test that the app generates a spec with the expected top-level paths. Otherwise no new tests required (docs/infra). Keep coverage ≥ 85. Standard PR ritual per CLAUDE.md. Commit (docs: README, Docker/Compose, OpenAPI export, MIT license, Makefile, audit trail). Do NOT merge.

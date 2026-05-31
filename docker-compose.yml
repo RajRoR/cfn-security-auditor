@@ -1,0 +1,37 @@
+# Local development orchestration: API + Streamlit dashboard.
+# The dashboard talks to the API over HTTP via CFN_AUDITOR_API_URL.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cfn-security-auditor:dev
+    environment:
+      CFN_AUDITOR_DATABASE_URL: "sqlite:///./cfn_auditor.db"
+      CFN_AUDITOR_LOG_LEVEL: "INFO"
+      # CFN_AUDITOR_API_KEY: "set-this-to-gate-the-api"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status == 200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  dashboard:
+    image: cfn-security-auditor:dev
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      CFN_AUDITOR_API_URL: "http://api:8000"
+      # CFN_AUDITOR_API_KEY: "must match the api service's value when set"
+    command:
+      - streamlit
+      - run
+      - src/cfn_auditor/dashboard/app.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+    ports:
+      - "8501:8501"
