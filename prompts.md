@@ -305,3 +305,25 @@
 > Out of scope (explicit): POST /scans and all scan run/read endpoints (next PR), scoring wiring (lands with scan-read), the Streamlit dashboard. Do NOT add columns or touch models.
 >
 > Keep coverage >= 85. Standard PR ritual per CLAUDE.md. Commit (feat: api foundation - app factory, session dependency, optional api-key auth, /health + /rules). Do NOT merge.
+
+---
+
+## Turn 14 — 2026-05-31 · Elapsed 04:05
+
+> PR #8 merged — thanks. API turn, part 2 of 2: the scan endpoints. This is where a request round-trips through get_session to the DB for the first time, and where scoring is wired in compute-on-read (per PR #7's recommendation — do NOT persist score/grade; derive at the boundary).
+>
+> Branch: feat/api-scans. Scope (one PR):
+>
+> POST /scans — accept a CloudFormation template (raw body or {"template": "..."}), run the existing engine run_scan against an injected Session (Depends(get_session)), persist Scan+Findings exactly as the engine already does — do NOT reimplement persistence. Return 201 with the scan id, status, counts, findings, and the computed score/grade/gate (call scoring.score() on the finalized counts at the boundary). Gate result is the existing passed semantic (critical_count == 0).
+>
+> GET /scans — list persisted scans (id, created_at, status, counts, computed score/grade/gate), newest first with a deterministic secondary sort (id desc). Paginate or cap; do not return findings here.
+>
+> GET /scans/{id} — full scan + findings + computed score/grade/gate. 404 (typed, no template content echoed — honor the error-hygiene contract) when absent.
+>
+> Error mapping: parse failures and oversize/invalid input → 4xx with a clean message that NEVER echoes template content (CLAUDE.md security rule). Engine fail-open behavior is unchanged — a thrown rule must not 500 the request.
+>
+> Auth: gate the scan endpoints with require_api_key, same as /rules. /health stays open.
+>
+> Tests (tests/api/): real round-trip through get_session (the seam #8 only proved via override) using the StaticPool engine — POST each oracle template (clean/medium/critical) and assert counts + score/grade/gate match the scoring oracles (100/A/pass, 50/F/pass, 0/F/fail). GET list ordering is deterministic. GET {id} 404 path asserts no template content in the body. Auth 401/200 on a scan route.
+>
+> Out of scope: Streamlit dashboard, the AI Remediation Advisor, Docker/README polish. Do NOT add columns or persist score/grade. Keep coverage >= 85. Standard PR ritual per CLAUDE.md. Commit (feat: api scans - run/list/get scans with compute-on-read scoring + error mapping). Do NOT merge.
