@@ -58,6 +58,22 @@ class Settings(BaseSettings):
         default="claude-sonnet-4-5",
         description="Model identifier passed to the LLM provider.",
     )
+    rate_limit_requests: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Per-client request cap inside one window. Set to 0 (the default) "
+            "to disable the in-process rate limiter; the API serves dev traffic "
+            "frictionless when unset."
+        ),
+    )
+    rate_limit_window_seconds: float = Field(
+        default=60.0,
+        gt=0,
+        description=(
+            "Length of the fixed window, in seconds. Ignored when " "rate_limit_requests is 0."
+        ),
+    )
 
 
 @lru_cache(maxsize=1)

@@ -107,6 +107,8 @@ All configuration is via environment variables, prefixed `CFN_AUDITOR_`. Default
 | `CFN_AUDITOR_LLM_PROVIDER`        | _unset_                       | `anthropic` to enable the LLM advisor; unset → deterministic static.     |
 | `CFN_AUDITOR_LLM_API_KEY`         | _unset_                       | Credential for the LLM provider.                                         |
 | `CFN_AUDITOR_LLM_MODEL`           | `claude-sonnet-4-5`           | Model identifier passed to the LLM provider.                             |
+| `CFN_AUDITOR_RATE_LIMIT_REQUESTS` | `0`                           | Per-client request cap inside one window. `0` = limiter disabled (default). |
+| `CFN_AUDITOR_RATE_LIMIT_WINDOW_SECONDS` | `60`                    | Length of the fixed window, in seconds. Ignored when the cap is 0.       |
 | `CFN_AUDITOR_API_URL` (dashboard) | `http://localhost:8000`       | Base URL the Streamlit dashboard calls.                                  |
 
 ## Auth model
@@ -125,9 +127,14 @@ Every non-2xx response carries a single `detail` string. The body **never echoes
 | 401    | API key configured but absent / wrong             | `{"detail": "Invalid or missing API key."}` (no `WWW-Authenticate`) |
 | 404    | unknown scan id                                   | `{"detail": "Scan <id> not found."}`                              |
 | 413    | template exceeds `CFN_AUDITOR_MAX_TEMPLATE_BYTES` | `{"detail": "Template '<label>' exceeds the configured size limit."}` |
+| 429    | rate-limit exceeded (when limiter is enabled)     | `{"detail": "Rate limit exceeded. Retry later."}` (`Retry-After` header set) |
 | 500    | unhandled server exception                        | `{"detail": "Internal Server Error"}`                             |
 
-Every response — success or error — carries an `X-Request-ID` header (generated when absent, propagated when supplied). The same id appears in the structured JSON access log line for that request.
+Every response — success or error, including 429 — carries an `X-Request-ID` header (generated when absent, propagated when supplied). The same id appears in the structured JSON access log line for that request.
+
+### Rate limiting (opt-in)
+
+Set `CFN_AUDITOR_RATE_LIMIT_REQUESTS > 0` to enable the in-process per-client fixed-window limiter; the window length is `CFN_AUDITOR_RATE_LIMIT_WINDOW_SECONDS`. Keying prefers the inbound `X-API-Key` and falls back to the client's IP. `/health` is always exempt (Docker Compose's healthcheck depends on it). Throttle rejections return 429 with the standards-compliant `Retry-After` header. The limiter never takes the API down: a bookkeeping error fails open (the request proceeds) per the standing fail-open contract.
 
 ## AI Remediation Advisor (optional, fail-open)
 
