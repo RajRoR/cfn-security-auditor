@@ -391,3 +391,23 @@
 > Tests (tests/dashboard/): unit-test get_advice and the advice transform with httpx.MockTransport — assert X-API-Key is sent when configured and omitted when not, the source/provider label is surfaced, order is preserved, the shared severity→color mapping is reused, and the empty-advice case is handled. No live server, no Streamlit runtime in tests. client.py stays 100%; coverage ≥ 85.
 >
 > Standard PR ritual per CLAUDE.md. Commit (feat: dashboard advice panel - per-finding remediation over /scans/{id}/advice). Do NOT merge.
+
+---
+
+## Turn 18 — 2026-05-31 · Elapsed 05:25
+
+> PR #12 merged — thanks. Remediation is now visible in the UI, served by the static provider. This turn makes it real: the Anthropic LLM provider, grounded by a lightweight in-repo RAG corpus, swapped in BEHIND the existing RemediationProvider abstraction. Critical consequence of that abstraction: this PR touches NEITHER the dashboard NOR the /advice endpoint — they already render whatever provider/source the API returns (proven by #12). If you find yourself editing app.py or routes/scans.py, stop — you're out of scope.
+>
+> Branch: feat/advisor-llm. New dependency authorized this turn (add via the package manager, pin it, record it in CLAUDE.md's stack table per the no-silent-deps rule): the Anthropic SDK. No vector-store dependency.
+>
+> Scope (one PR):
+>
+> RAG corpus + retriever (deterministic, no network): a small curated in-repo corpus of security-control guidance (e.g. src/cfn_auditor/advisor/corpus/ as .md/.txt — CIS-AWS / Well-Architected-style snippets keyed to the rule domains we actually check: S3, SG, IAM, RDS, EC2, CloudTrail). A pure lexical retriever that, given a FindingInput, selects the most relevant passage(s) by rule_id and keyword overlap (rule_id / resource_type / message). No embeddings, no vector DB — keep it deterministic and unit-testable. Note embedding-based retrieval as a documented production swap in a comment/README stub, do NOT build it.
+>
+> AnthropicRemediationProvider implementing the existing RemediationProvider protocol (advise(findings) -> list[AdviceItem], order preserved). For each finding: retrieve grounding passages, build a prompt that instructs the model to ground its remediation in the PROVIDED control context + the finding and NOT to invent beyond it, call Anthropic, parse the response into the remediation string. Model name from config (CFN_AUDITOR_LLM_MODEL, never hardcoded); key from env. Per-item source reflects actual provenance ("llm:{model}"); top-level provider name reflects the selected provider.
+>
+> Resilience (fail-open, non-negotiable): wire the factory seam left in get_provider — when CFN_AUDITOR_LLM_PROVIDER + key are configured, construct the Anthropic provider; on construction failure fall back to StaticRemediationProvider. Within the provider, a per-finding LLM/parse failure must fall back to the static remediation for THAT finding (source then honestly reads "static"), never crash the advice call. No key configured → static, exactly as today.
+>
+> Tests (tests/advisor/): ALL Anthropic calls mocked — no live network in CI, ever. Assert: the retriever is deterministic and returns the relevant passage for a known rule_id; the built prompt actually contains the retrieved grounding context; a mocked LLM response is parsed into AdviceItem with source "llm:{model}"; a mocked LLM error falls back to static remediation for that finding (and the call still returns, fail-open); the factory selects Anthropic when configured and static otherwise, and falls back to static on construction failure. Deterministic only.
+>
+> Explicitly out of scope: any dashboard change (the panel already consumes the provider/source label), any /advice endpoint change, observability, and polish. Do NOT persist remediation, add columns, or touch models/engine. Keep coverage ≥ 85. Standard PR ritual per CLAUDE.md. Commit (feat: advisor llm - anthropic remediation provider grounded by in-repo RAG, behind the provider abstraction, static fallback). Do NOT merge.

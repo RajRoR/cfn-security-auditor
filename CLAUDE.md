@@ -53,6 +53,7 @@ The two persisted entities are `Scan` and `Finding` (one-to-many, cascading dele
 | YAML         | pyyaml            | 6.0.x          |
 | Dashboard    | streamlit         | 1.40.x         |
 | HTTP client  | httpx             | 0.28.x         |
+| LLM SDK      | anthropic         | >=0.39,<1      |
 | Tests        | pytest            | 8.3.x          |
 | Coverage     | pytest-cov        | 6.0.x          |
 | Lint         | ruff              | 0.14.x         |
