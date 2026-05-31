@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Critical template — multiple critical findings across services.
+Resources:
+  # S3-001 HIGH: no BucketEncryption.
+  # S3-002 CRITICAL: no PublicAccessBlockConfiguration.
+  # S3-003 CRITICAL: AccessControl PublicRead.
+  PublicBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: public-bucket
+      AccessControl: PublicRead
+
+  # SG-001 CRITICAL: 0.0.0.0/0 on SSH (port 22).
+  SshOpenSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ssh-open
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  # IAM-001 HIGH and IAM-002 MEDIUM on the same Allow statement.
+  AdminPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: admin
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: '*'
+            Resource: '*'
+      Roles:
+        - AdminRole
+
+  # RDS-001 HIGH: StorageEncrypted absent.
+  # RDS-002 CRITICAL: PubliclyAccessible true.
+  PublicDb:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: db.t3.micro
+      Engine: mysql
+      PubliclyAccessible: true
+
+  AdminRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole

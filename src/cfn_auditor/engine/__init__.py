@@ -1,3 +1,5 @@
-"""Audit engine — orchestrates parse → run rules → persist. Stub."""
+"""Audit engine — orchestrates parse → run rules → persist."""
 
-__all__: list[str] = []
+from cfn_auditor.engine.scanner import run_scan
+
+__all__ = ["run_scan"]
