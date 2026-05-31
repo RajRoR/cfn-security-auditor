@@ -29,6 +29,16 @@ The two persisted entities are `Scan` and `Finding` (one-to-many, cascading dele
 
 **Standing note:** the denormalized severity counts on `Scan` (`finding_count`, `critical_count`, `high_count`, `medium_count`, `low_count`, `info_count`) are a **single-write-path field**: derived from a scan's findings and written **once at scan finalization**, never hand-maintained. Anything that mutates findings must either go through that finalization path or be considered a bug.
 
+## Resilience
+
+- **Fail open, never closed.** The auditor degrades gracefully and warns; it never refuses to scan because of one unparseable or unknown node. A single rule that raises must not abort the scan: the engine isolates per-rule failures, logs them, records them, and continues evaluating the remaining rules and resources.
+
+## Rules Authoring
+
+- **Rule IDs are `CFN_<SERVICE>_<NNN>`** (e.g. `CFN_S3_001`), stable and never reused once published.
+- **Intrinsic contract.** Rules read literal values via `literal_or_none`. Absence checks fire on a missing property; insecure-literal checks fire only on the literal insecure value; a property present but holding an unresolved intrinsic emits no finding and never crashes. We never assert (in)security we cannot statically prove.
+- **Rules return `RuleFinding` and never import `models`/`db`.** The engine maps `RuleFinding` to the persisted `Finding`; the dependency direction is `rules → parser` only.
+
 ## Stack (pinned)
 
 | Layer        | Tool              | Pinned Version |
@@ -88,6 +98,8 @@ The CI workflow runs **exactly** these commands. Do not let local config diverge
 - **One branch per turn**, named `<type>/<short-slug>` (e.g. `chore/bootstrap`, `feat/parser`).
 - **Squash-merge** via PR. **No direct pushes to `main`.**
 - PRs use the template at `.github/pull_request_template.md`.
+- **Claude never merges.** Claude may create branches, push commits, and open PRs, then stop after reporting CI status. The human performs every merge. "Open the PR" never implies merging it. Claude must wait for an explicit merge confirmation before starting the next turn.
+- **No dependency or version changes without explicit human approval.** Adding or removing a dependency, or changing a pinned version, requires the human to approve it first in a prompt. Tooling bumps forced by the runtime (e.g. a linter that must parse `py314`) still require explicit sign-off.
 
 ## Security Standards (we eat our own dog food)
 
@@ -98,6 +110,7 @@ The CI workflow runs **exactly** these commands. Do not let local config diverge
 - Never shell out. Never `eval`/`exec`.
 - API key auth: optional. If `CFN_AUDITOR_API_KEY` is unset, API is open (dev mode). If set, header `X-API-Key` required.
 - Rule code is trusted (in-repo); never load rules from user-supplied paths or remote URLs.
+- **Error messages never echo template content.** Parser and rule errors name the template label and the resource logical id, never the offending source text, so untrusted template content cannot leak through logs or API responses.
 
 ## The Vibe-Coding Rule
 
