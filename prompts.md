@@ -472,3 +472,27 @@
 > Out of scope: any rule/engine/scoring/model/API/advisor/dashboard behavior change; the deck (next turn). No new runtime dependencies (dev/tooling only if unavoidable, pinned + recorded in CLAUDE.md).
 >
 > Tests: if the OpenAPI export is scripted, add a tiny test that the app generates a spec with the expected top-level paths. Otherwise no new tests required (docs/infra). Keep coverage ≥ 85. Standard PR ritual per CLAUDE.md. Commit (docs: README, Docker/Compose, OpenAPI export, MIT license, Makefile, audit trail). Do NOT merge.
+
+---
+
+## Turn 22 — 2026-05-31 · Elapsed 06:50
+
+> PR #16 merged — thanks. Code and packaging are frozen. This is the presentation deck: a docs-only PR, NO src/ changes. If you find yourself editing anything under src/cfn_auditor/, stop — it doesn't belong here.
+>
+> Branch: docs/deck. Deliver the deck as a committed Markdown file (docs/DECK.md) authored in Marp-compatible slide syntax (--- slide breaks, plain Markdown — do NOT add Marp, reveal.js, or any renderer as a dependency; the file must read cleanly as plain Markdown on GitHub and ALSO render if someone runs Marp later). No new runtime or dev dependencies.
+>
+> Audience: a hiring panel evaluating an FDE/GenAI candidate. The deck's spine is the Solutions Architect + human-in-the-loop story, evidenced by what actually shipped — not aspirations. Every claim must trace to something real on main (a PR, a file, a test, the audit trail). Do NOT invent metrics, benchmarks, customer numbers, or features that aren't in the repo.
+>
+> Slides (one concept each, tight):
+>
+> Title — what it is in one line: API-first static security guardrail auditor for CloudFormation, offline, pre-deploy gate.
+> Problem — misconfigured CFN reaches AWS; cost/latency/credential friction of live scanning; the case for static + reproducible.
+> Architecture — the parser → rules → engine → persist → score → API → dashboard flow, plus the advisor and observability layers. Reuse the README diagram; the dashboard speaks only HTTP.
+> The rule engine — auto-registering rules, 10 guardrails across S3/SG/IAM/RDS/EC2/CloudTrail, the intrinsic-aware "no findings on unresolved intrinsics; fire only on proven insecurity or absence" contract.
+> Scoring + gate — deterministic score/grade/pass-fail, compute-on-read.
+> The GenAI angle — the AI Remediation Advisor: RemediationProvider Protocol, static default, Anthropic + in-repo RAG opt-in, fail-open at both construction and per-finding levels, source provenance. This is the headline GenAI slide.
+> Resilience + security posture — fail-open scanning (one bad node/rule never stops the scan), error hygiene (responses and logs never echo template content), optional constant-time API key, standards-compliant 401, observability (request-id on every response + structured JSON logs).
+> Engineering governance / human-in-the-loop — the "Claude never merges" contract, one prompt → one branch → one PR, CI merge gate (ruff/black/mypy + 85% coverage floor), the prompts.md + AUDIT_TRAIL.md traceability story. Cite the real PR count (#1–#16) and ~237 tests / ~96% coverage as last measured — do NOT round up or embellish.
+> Live demo script — the exact commands a reviewer runs: compose up, POST a sample template, read score/findings, GET advice, show the request-id correlation. Mirror the README quickstart so they match.
+> Closing — what an FDE takes from this: contract-first, resilient-by-default, AI-as-implementer-under-human-control. Pointer to the repo + audit trail.
+> Keep slides terse (bullets, not prose). Use "–" (en-dash), never "—". Numbers must match reality — if you cite test count or coverage, pull the real figure; if unsure, state the floor (85%) rather than guess. No new tests required (docs-only); coverage unaffected. Standard PR ritual per CLAUDE.md. Commit (docs: presentation deck). Do NOT merge.
