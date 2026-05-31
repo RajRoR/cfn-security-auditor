@@ -247,3 +247,32 @@
 > Out of scope: scoring/grading (next turn — Scan keeps raw counts only), the FastAPI layer, the Streamlit dashboard.
 >
 > Keep coverage >= 85. Standard PR ritual per CLAUDE.md. Commit (feat: engine - orchestrate parse -> rules -> persisted scan/findings with per-rule isolation). Do NOT merge.
+
+---
+
+## Turn 12 — 2026-05-31 · Elapsed 03:30
+
+> PR #6 merged — thanks. Scoring turn.
+>
+> Branch: feat/scoring. Goal: a pure, deterministic scoring function that turns a scan's severity counts into a numeric score, a letter grade, and a pass/fail gate decision. No persistence, no schema change this turn.
+>
+> Scope (one PR):
+>
+> 1. New module src/cfn_auditor/scoring.py — a leaf module that imports ONLY cfn_auditor.models.Severity (no engine, no db, no I/O). Expose via __all__.
+>    - A frozen dataclass ScoreResult(score: int, grade: str, passed: bool).
+>    - score(counts) -> ScoreResult where counts is the denormalized severity mapping already on a Scan (critical/high/medium/low/info). Accept either a Scan or a plain mapping — your call, but keep the signature typed and documented; do NOT import Scan if a mapping suffices (prefer the looser coupling).
+>    - Locked, module-constant penalty weights (these are the contract — document them in the docstring): CRITICAL=40, HIGH=20, MEDIUM=10, LOW=3, INFO=0.
+>    - score = max(0, 100 - sum(weight * count)). Integer.
+>    - Letter grade bands: A >=90, B >=80, C >=70, D >=60, else F.
+>    - Gate semantic (document it explicitly): passed = (critical_count == 0). A pre-deploy gate fails on any CRITICAL regardless of score; grade is informational. Do not also gate on score this turn — one gate rule, clearly stated.
+>
+> 2. Pure unit tests (tests/test_scoring.py): 
+>    - The three oracle expectations from the engine turn: clean -> 100/A/passed; medium (HIGH=1, MEDIUM=3) -> score 50, grade F, passed True (no criticals); critical (CRITICAL=4, HIGH=3, MEDIUM=1) -> score 0, grade F, passed False. Verify these arithmetic results exactly.
+>    - Grade-band boundary tests (89/90, 79/80, 69/70, 59/60) driven by synthetic count mappings.
+>    - The gate: a single CRITICAL flips passed to False even when score is otherwise high; zero criticals with many lower-severity findings stays passed True.
+>
+> Do NOT wire scoring into the engine, the Scan model, or any persistence this turn. Do NOT touch the API. If you find a reason scoring MUST be persisted to work, stop and ask rather than adding a column.
+>
+> Open question to answer in the PR body (do not act on it): should grade/score be persisted on Scan for SQL-level filtering, or computed on read at the API boundary? Recommend, don't implement.
+>
+> Keep coverage >= 85. Standard PR ritual per CLAUDE.md. Commit (feat: scoring - deterministic score/grade/gate from severity counts). Do NOT merge.
