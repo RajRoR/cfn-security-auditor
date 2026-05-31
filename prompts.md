@@ -195,3 +195,30 @@
 > Intrinsic contract via literal_or_none: for every value-based check, an unresolved-intrinsic value means we cannot assert insecurity - emit no finding. Each value-based rule (S3_002 flags, SG port/cidr, RDS_001/002, EC2_001) carries the full triad test: secure-literal -> no finding, insecure-literal -> fires, unresolved-intrinsic -> no finding. Pure absence/presence rules (CT_001, IAM presence) don't need the intrinsic arm.
 >
 > Tiny inline pass/fail fixtures per rule. Do NOT build the clean/medium/critical oracle templates - those are the engine turn. Do NOT build the engine, scoring, or API. Keep coverage >= 85. Then commit (feat: rules batch - 9 guardrails across S3/SG/IAM/RDS/EC2/CloudTrail), push feat/rules-batch, open the PR, report CI. Do NOT merge.
+
+---
+
+## Turn 10 — 2026-05-31 · Elapsed 02:45
+
+> PR #4 is merged — thanks. Quick closure on your two questions before the next turn:
+> (a) Merged by me, per the human-only-merge rule. main now contains the rules batch.
+> (b) feat/engine scope is confirmed and scoring stays its own later turn (not pulled forward) — but that's the turn AFTER this one. I'll send the engine prompt next. Do NOT start the engine in this turn.
+>
+> This turn is a governance/contract turn. Branch: docs/contract-hardening (branch off latest main). CLAUDE.md only (plus the prompts.md entry).
+>
+> Under "Commits & PRs":
+> - **Claude never merges.** Claude may create branches, push commits, and open PRs, then stop after reporting CI status. The human performs every merge. "Open the PR" never implies merging it. Claude must wait for an explicit merge confirmation before starting the next turn.
+> - **No dependency or version changes without explicit human approval.** Adding/removing a dependency or changing a pinned version requires the human to approve it first in a prompt. (Tooling bumps forced by the runtime, like a linter that must parse py314, still require explicit sign-off.)
+>
+> Under "Security Standards":
+> - **Error messages never echo template content.** Parser and rule errors name the template label and the logical id, never the offending source text, so untrusted template content cannot leak through logs or API responses.
+>
+> New short section "Resilience" (after Architecture):
+> - **Fail open, never closed.** The auditor degrades gracefully and warns; it never refuses to scan because of one unparseable or unknown node. A single rule that raises must not abort the scan: the engine isolates per-rule failures, logs them, records them, and continues evaluating the remaining rules and resources.
+>
+> New short section "Rules Authoring" (after Resilience):
+> - **Rule IDs are CFN_<SERVICE>_<NNN>** (e.g. CFN_S3_001), stable and never reused once published.
+> - **Intrinsic contract.** Rules read literal values via literal_or_none. Absence checks fire on a missing property; insecure-literal checks fire only on the literal insecure value; a property present but holding an unresolved intrinsic emits no finding and never crashes. We never assert (in)security we cannot statically prove.
+> - **Rules return RuleFinding and never import models/db.** The engine maps RuleFinding to the persisted Finding; the dependency direction is rules -> parser only.
+>
+> Append the prompts.md turn entry in the fixed-header format. Commit (docs: harden standing contract - merge gate, fail-open, error hygiene, dependency approval, rules-authoring), push, open the PR, report CI. Do NOT merge.
