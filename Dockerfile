@@ -18,7 +18,10 @@ COPY --from=ghcr.io/astral-sh/uv:0.9.22 /uv /usr/local/bin/uv
 WORKDIR /app
 
 # Copy lockfile + project metadata first so the dependency layer caches well.
-COPY pyproject.toml uv.lock ./
+# README.md and LICENSE are referenced from pyproject.toml ([project].readme
+# / [project].license) — hatchling reads them at build time, so they must
+# land in the build context before `uv sync` runs.
+COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY src/ ./src/
 
 RUN uv sync --frozen --no-dev
