@@ -11,9 +11,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1
 
-# uv for reproducible installs.
-ADD --chmod=755 https://astral.sh/uv/install.sh /tmp/install-uv.sh
-RUN /tmp/install-uv.sh && cp /root/.local/bin/uv /usr/local/bin/uv
+# Pull a self-contained uv binary from astral-sh's official image. Avoids
+# needing curl/wget in the slim base image.
+COPY --from=ghcr.io/astral-sh/uv:0.9.22 /uv /usr/local/bin/uv
 
 WORKDIR /app
 
