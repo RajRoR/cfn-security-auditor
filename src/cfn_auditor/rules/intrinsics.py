@@ -14,7 +14,7 @@ Rule semantics agreed with the standing contract:
 
 from typing import Any
 
-__all__ = ["INTRINSIC_KEYS", "is_intrinsic", "literal_or_none"]
+__all__ = ["INTRINSIC_KEYS", "as_list", "is_intrinsic", "literal_or_none"]
 
 
 # Keys that, when sole top-level keys of a one-key dict, mark that dict as an
@@ -52,6 +52,18 @@ def is_intrinsic(value: Any) -> bool:
         return False
     (only_key,) = value.keys()
     return only_key in INTRINSIC_KEYS
+
+
+def as_list(value: Any) -> list[Any]:
+    """Return ``value`` as a list, preserving lists and wrapping non-lists.
+
+    CloudFormation polymorphism helper: many properties (IAM ``Action`` /
+    ``Resource``, ``Statement``) accept either a single scalar or a list.
+    This converts both shapes to a list so rules can iterate uniformly.
+    """
+    if isinstance(value, list):
+        return value
+    return [value]
 
 
 def literal_or_none(value: Any) -> Any:

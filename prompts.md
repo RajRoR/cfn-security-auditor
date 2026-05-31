@@ -170,3 +170,28 @@
 > - CFN_EC2_001 EBS volume/block device unencrypted (MEDIUM)
 > - CFN_CT_001 CloudTrail trail without KMSKeyId (MEDIUM)
 > The Lambda plaintext-secret heuristic is cut from MVP (fuzzy, false-positive-prone) - defer to a labelled heuristic set post-MVP. Every value-based rule (S3_002 flags, SG port, RDS_001/002, EC2_001) must carry the full pass / insecure-literal-fires / unresolved-intrinsic-no-finding test triad.
+
+---
+
+## Turn 9 — 2026-05-31 · Elapsed 02:15
+
+> PR #3 approved and merged. Next branch: feat/rules-batch. Build the locked 9 guardrails against the parsed model. Static only, no AWS, no intrinsic evaluation. One PR for all nine.
+>
+> Layout: one file per service under rules/checks/ (sg.py, iam.py, rds.py, ec2.py, cloudtrail.py), mirroring s3.py. Update rules/checks/__init__.py to import every service module so each @register side-effect fires - an unimported rule silently never runs. Add a test asserting all 10 expected rule ids are present in all_rules().
+>
+> The 9 rules:
+> - CFN_S3_002 AWS::S3::Bucket: PublicAccessBlockConfiguration missing, or any of BlockPublicAcls/IgnorePublicAcls/BlockPublicPolicy/RestrictPublicBuckets literally false (CRITICAL)
+> - CFN_S3_003 AWS::S3::Bucket: AccessControl is PublicRead or PublicReadWrite (CRITICAL)
+> - CFN_SG_001 AWS::EC2::SecurityGroup: an inline SecurityGroupIngress entry with CidrIp 0.0.0.0/0 or CidrIpv6 ::/0. HIGH, escalates to CRITICAL when the port range (FromPort..ToPort) covers 22 or 3389. Standalone AWS::EC2::SecurityGroupIngress resources are a documented MVP limitation.
+> - CFN_IAM_001 policy with an Allow statement whose Action includes the literal "*" (HIGH)
+> - CFN_IAM_002 policy with an Allow statement whose Resource includes the literal "*" (MEDIUM)
+> - CFN_RDS_001 AWS::RDS::DBInstance: StorageEncrypted literally false or absent (HIGH)
+> - CFN_RDS_002 AWS::RDS::DBInstance: PubliclyAccessible literally true (CRITICAL)
+> - CFN_EC2_001 AWS::EC2::Volume: Encrypted literally false or absent (MEDIUM)
+> - CFN_CT_001 AWS::CloudTrail::Trail: KMSKeyId absent (MEDIUM)
+>
+> IAM correctness (apply to whichever IAM resource types carry a PolicyDocument): fire only on Effect: Allow; Statement may be a single dict or a list - normalise; Action/Resource may be a string or a list - normalise; match the literal full wildcard "*", not service-scoped like "s3:*".
+>
+> Intrinsic contract via literal_or_none: for every value-based check, an unresolved-intrinsic value means we cannot assert insecurity - emit no finding. Each value-based rule (S3_002 flags, SG port/cidr, RDS_001/002, EC2_001) carries the full triad test: secure-literal -> no finding, insecure-literal -> fires, unresolved-intrinsic -> no finding. Pure absence/presence rules (CT_001, IAM presence) don't need the intrinsic arm.
+>
+> Tiny inline pass/fail fixtures per rule. Do NOT build the clean/medium/critical oracle templates - those are the engine turn. Do NOT build the engine, scoring, or API. Keep coverage >= 85. Then commit (feat: rules batch - 9 guardrails across S3/SG/IAM/RDS/EC2/CloudTrail), push feat/rules-batch, open the PR, report CI. Do NOT merge.
