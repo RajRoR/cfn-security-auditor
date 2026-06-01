@@ -43,20 +43,20 @@ back to the prompt that asked for it.
 | 21   | `docs/polish-and-packaging`     | #16   | docs: README, Docker/Compose, OpenAPI export, MIT license, Makefile, audit trail                                                              |
 | 22   | `docs/deck`                     | #17   | docs: presentation deck                                                                                                                       |
 | 24   | `feat/rate-limiting`            | #18   | feat: rate limiting - per-client window limiter, standards-compliant 429 + Retry-After                                                        |
-| 24   | `feat/rate-limiting` (in-PR fix)| #18   | (folded into #18 - in-PR redaction fix on the limiter's log surface so the X-API-Key value never reaches stored logs)                         |
 | 23   | `fix/dashboard-home-permission` | #19   | fix: create writable home for app user so the dashboard container boots                                                                       |
-| 25   | `docs/sync-final-state`         | _this PR_ | docs: sync deck, audit trail, README to final state (#1-#19) + dashboard screenshot                                                       |
+| 26   | `fix/rate-limiter-key-redaction`| #21   | fix: hash api-key in rate-limiter client key so secrets never reach logs                                                                      |
+| 25   | `docs/sync-final-state`         | _this PR_ | docs: sync deck, audit trail, README to final state (#1-#19 + #21) + dashboard screenshot                                                  |
 
 Turns 3, 4, 6, and 8 land as additional commits inside an already-open PR
 because the human asked for them as in-PR review fixes before approving the
 merge. They carry their own prompt entries in `prompts.md`; each is
 attributable to a specific commit on the branch.
 
-Turn 24 maps to PR #18 in two rows: the original prompt that produced the
-limiter and the in-PR redaction fix folded in before merge. Turn 23 maps to
-PR #19 even though its turn number sorts before Turn 24's because Turn 24
-was renumbered during conflict resolution after PRs #17 and #19 had already
-landed on `main`.
+Turn 23 maps to PR #19 even though its turn number sorts before Turn 24's
+because Turn 24 was renumbered during conflict resolution after PRs #17 and
+#19 had already landed on `main`. Turn 26 (the rate-limiter key redaction)
+landed as its own PR (#21), not folded into #18 — the secret-on-log-surface
+problem was caught after #18 had merged, so it shipped as a follow-up.
 
 ## How to use this file
 

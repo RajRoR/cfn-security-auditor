@@ -198,7 +198,9 @@ def test_internal_error_in_limiter_fails_open() -> None:
 def test_429_logs_one_warning_with_key_and_path_no_template_content(
     captured_logs: list[str],
 ) -> None:
-    """The throttle WARN line carries client_key + path + status, never template content."""
+    """The throttle WARN line carries client_key + path + status, never the raw key."""
+    import re
+
     clock = _Clock()
     limiter = FixedWindowLimiter(cap=1, window_seconds=60.0, clock=clock)
     with TestClient(_build_app(limiter)) as client:
@@ -214,11 +216,15 @@ def test_429_logs_one_warning_with_key_and_path_no_template_content(
     assert len(rate_limit_lines) == 1
     line = rate_limit_lines[0]
     assert line["level"] == "WARNING"
-    assert line["client_key"] == "api:alice"
+    # client_key is the SHA-256 prefix, never the raw secret.
+    assert isinstance(line["client_key"], str)
+    assert re.fullmatch(r"api:[0-9a-f]{16}", line["client_key"])
     assert line["path"] == "/probe"
     assert line["status_code"] == 429
-    # Sanity: nothing template-shaped leaked in.
+    # The raw API-key value MUST NOT appear anywhere in the log JSON.
     raw_text = json.dumps(line)
+    assert "alice" not in raw_text
+    # Sanity: nothing template-shaped leaked in.
     for forbidden in ("Resources:", "AWS::", "BucketName"):
         assert forbidden not in raw_text
 

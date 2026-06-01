@@ -163,7 +163,7 @@ src/cfn_auditor/
   dashboard/   Streamlit client + pure transforms
 docs/
   openapi.json   regenerate via `make openapi`
-  AUDIT_TRAIL.md prompts → PR mapping (turns 1–25 → PRs #1–#19)
+  AUDIT_TRAIL.md prompts → PR mapping (turns 1–26 → PRs #1–#19 + #21)
 tests/         Mirrors src layout; coverage floor 85%
 ```
 

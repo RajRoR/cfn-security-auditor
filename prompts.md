@@ -565,3 +565,36 @@
 > Fix the stale caption in Project layout: AUDIT_TRAIL.md ... (turns 1–20 → PRs #1–#15) → the real final span (#1–#19).
 > Embed the same screenshot under the Architecture section: ![Dashboard](docs/assets/dashboard-overview.png) (root-relative path, since README is at repo root).
 > Confirm the screenshot path resolves correctly from BOTH files (assets/… from docs/DECK.md, docs/assets/… from README.md). Re-run ruff / black / mypy / pytest for parity (docs-only ⇒ green). Conventional Commit: docs: sync deck, audit trail, README to final state (#1–#19) + dashboard screenshot. Update prompts.md with this turn in the fixed-header format. Do NOT merge.
+
+---
+
+## Turn 26 — 2026-05-31 · Elapsed 08:05
+
+> Small, focused security fix. Branch: fix/rate-limiter-key-redaction. Scope: API rate-limiter only — do NOT touch parser, rules, engine, scoring, advisor, dashboard, or any doc except prompts.md.
+>
+> Problem: src/cfn_auditor/api/rate_limit.py logs the raw X-API-Key. _client_key returns f"api:{api_key}", and the throttle WARN line writes that verbatim as client_key. X-API-Key is the app's gating credential, so this is a secret on the log surface — it violates the log-hygiene contract in CLAUDE.md and the "never echo secrets" posture.
+>
+> Fix: make the API-key-derived key non-reversible so the raw secret never reaches the in-memory bucket dict OR the log. In _client_key, hash the key with stdlib hashlib (no new dep): return f"api:{hashlib.sha256(api_key.encode()).hexdigest()[:16]}". Keep the ip: branch exactly as-is (IPs aren't secrets and are useful for debugging). Distinct keys must still map to distinct buckets, so two different API keys remain independently limited — the hash preserves that.
+>
+> Tests (tests/api/test_rate_limit.py): update the assertion that currently expects client_key == "api:alice" to assert the hashed form — prefix api: followed by a 16-char hex digest — and add a one-line assertion that the literal raw key ("alice") does NOT appear anywhere in the log JSON. Keep the two-distinct-keys-independent test passing (hashes of distinct keys differ). All other tests and keying behaviour unchanged; coverage stays ≥ 85.
+>
+> No other changes. Re-run ruff / black / mypy / pytest --cov=src --cov-fail-under=85 and report the ACTUAL test count + coverage (I need the new number to re-figure the deck). Update prompts.md with this turn in the fixed-header format. Conventional Commit: fix: hash api-key in rate-limiter client key so secrets never reach logs. Do NOT merge.
+
+---
+
+## Turn 27 — 2026-05-31 · Elapsed 08:15
+
+> Revision to the existing PR #20 on branch docs/sync-final-state. Code is frozen; this stays docs-only, NO src/ or test changes. PR #21 (fix: hash api-key in rate-limiter client key) has now merged to main, so two claims in #20 that were false-or-missing must be corrected to match reality.
+>
+> First re-establish ground truth – do NOT trust #20's current figures:
+>
+> Run uv run pytest --cov=src --cov-fail-under=85 on this branch (now rebased on/merged with main carrying #21) and read the ACTUAL test count and coverage off the run. Expected ~252 tests / 96.41%, but use whatever the run prints.
+> Then fix three things:
+>
+> 1. docs/AUDIT_TRAIL.md – the redaction row currently reads as "folded into #18". That is false; the redaction landed as its own PR #21 (Turn 26). Rewrite that row so it points at PR #21 with its own turn number, matching the prompts.md Turn 26 entry. The turn→PR mapping must be internally consistent: #18 = rate limiting, #21 = key redaction.
+>
+> 2. docs/DECK.md – the redaction is now real on main, so the "deliberate omission" no longer applies. Add a bullet to the security-posture slide's rate-limiting line: "API key hashed (SHA-256) in the limiter's bucket key and logs, so the raw X-API-Key never reaches the log surface (#21)." Remove the deliberate-omission note about the hash not having landed. Update the governance-slide figures to the run you just measured (252 / 96.41% – the coverage ticks from 96.40).
+>
+> 3. Any other figure in docs/DECK.md or README.md still citing 96.40 → update to the measured 96.41. Leave the PR-count text as #1–#19 (PR #21 is a follow-up the docs reference but the merged-on-main deck count at submission is your call – state which you used).
+>
+> Re-run ruff / black / mypy / pytest for parity (docs-only ⇒ green). Confirm grep -c "—" docs/DECK.md is still 0 (en-dashes only). Update prompts.md with this turn in the fixed-header format. Conventional Commit: docs: correct audit trail + deck to reflect merged key redaction (#21). Do NOT merge.

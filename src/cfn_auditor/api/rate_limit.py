@@ -36,6 +36,7 @@ The 429's structured WARN log line carries the same id via the contextvar.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import math
 import threading
@@ -126,10 +127,19 @@ class FixedWindowLimiter:
 
 
 def _client_key(request: Request) -> str:
-    """Resolve the bucket key for ``request``."""
+    """Resolve the bucket key for ``request``.
+
+    The ``X-API-Key`` value is the app's gating credential, so the raw secret
+    must never reach the in-memory bucket dict or the throttle log line. We
+    derive the bucket key from a SHA-256 digest (truncated to 16 hex chars
+    for log readability); distinct API keys still hash to distinct buckets,
+    so two different callers remain independently limited. The ``ip:`` branch
+    is unchanged — IPs are not secrets and stay useful for debugging.
+    """
     api_key = request.headers.get("x-api-key")
     if api_key:
-        return f"api:{api_key}"
+        digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:16]
+        return f"api:{digest}"
     client = request.client
     if client is not None and client.host:
         return f"ip:{client.host}"
