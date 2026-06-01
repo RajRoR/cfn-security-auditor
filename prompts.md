@@ -533,3 +533,17 @@
 > Tests (deterministic — no real sleeps, no wall-clock): inject the clock/time source into the limiter so tests advance it explicitly. Cover: (1) N requests pass then the N+1th in-window gets 429; (2) after the window advances, requests pass again; (3) the 429 carries X-Request-ID, Retry-After, and the {"detail": …} body; (4) /health is never throttled; (5) limiter disabled when unset; (6) two distinct client keys are limited independently. Keep coverage ≥ 85.
 >
 > If you declare 429 anywhere in the schema, regenerate docs/openapi.json via make openapi and keep the openapi smoke test green; if you keep it purely middleware-side (no schema change), leave the spec as-is and say so. Do NOT update docs/AUDIT_TRAIL.md's turn→PR table in this PR — that bookkeeping (and the README "turns 1–20 → PRs #1–#15" caption) folds into the deck/docs turn so this PR stays focused. Standard PR ritual per CLAUDE.md. Commit (feat: rate limiting — per-client window limiter, standards-compliant 429 + Retry-After). Do NOT merge.
+
+---
+
+## Turn 26 — 2026-05-31 · Elapsed 08:05
+
+> Small, focused security fix. Branch: fix/rate-limiter-key-redaction. Scope: API rate-limiter only — do NOT touch parser, rules, engine, scoring, advisor, dashboard, or any doc except prompts.md.
+>
+> Problem: src/cfn_auditor/api/rate_limit.py logs the raw X-API-Key. _client_key returns f"api:{api_key}", and the throttle WARN line writes that verbatim as client_key. X-API-Key is the app's gating credential, so this is a secret on the log surface — it violates the log-hygiene contract in CLAUDE.md and the "never echo secrets" posture.
+>
+> Fix: make the API-key-derived key non-reversible so the raw secret never reaches the in-memory bucket dict OR the log. In _client_key, hash the key with stdlib hashlib (no new dep): return f"api:{hashlib.sha256(api_key.encode()).hexdigest()[:16]}". Keep the ip: branch exactly as-is (IPs aren't secrets and are useful for debugging). Distinct keys must still map to distinct buckets, so two different API keys remain independently limited — the hash preserves that.
+>
+> Tests (tests/api/test_rate_limit.py): update the assertion that currently expects client_key == "api:alice" to assert the hashed form — prefix api: followed by a 16-char hex digest — and add a one-line assertion that the literal raw key ("alice") does NOT appear anywhere in the log JSON. Keep the two-distinct-keys-independent test passing (hashes of distinct keys differ). All other tests and keying behaviour unchanged; coverage stays ≥ 85.
+>
+> No other changes. Re-run ruff / black / mypy / pytest --cov=src --cov-fail-under=85 and report the ACTUAL test count + coverage (I need the new number to re-figure the deck). Update prompts.md with this turn in the fixed-header format. Conventional Commit: fix: hash api-key in rate-limiter client key so secrets never reach logs. Do NOT merge.
