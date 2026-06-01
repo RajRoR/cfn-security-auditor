@@ -492,3 +492,20 @@
 > Tests (deterministic — no real sleeps, no wall-clock): inject the clock/time source into the limiter so tests advance it explicitly. Cover: (1) N requests pass then the N+1th in-window gets 429; (2) after the window advances, requests pass again; (3) the 429 carries X-Request-ID, Retry-After, and the {"detail": …} body; (4) /health is never throttled; (5) limiter disabled when unset; (6) two distinct client keys are limited independently. Keep coverage ≥ 85.
 >
 > If you declare 429 anywhere in the schema, regenerate docs/openapi.json via make openapi and keep the openapi smoke test green; if you keep it purely middleware-side (no schema change), leave the spec as-is and say so. Do NOT update docs/AUDIT_TRAIL.md's turn→PR table in this PR — that bookkeeping (and the README "turns 1–20 → PRs #1–#15" caption) folds into the deck/docs turn so this PR stays focused. Standard PR ritual per CLAUDE.md. Commit (feat: rate limiting — per-client window limiter, standards-compliant 429 + Retry-After). Do NOT merge.
+
+---
+
+## Turn 23 — 2026-05-31 · Elapsed 07:25
+
+> Bug in the Docker image from #16: the Streamlit dashboard container crashes on startup with PermissionError: [Errno 13] Permission denied: '/home/app'. Root cause: the runtime stage creates the app user with --no-create-home, so /home/app never exists; USER app doesn't set $HOME, so Streamlit's expanduser("~") resolves to the non-existent, non-writable /home/app and dies trying to write its machine-id state file. The API container is unaffected (uvicorn never touches $HOME); only the dashboard breaks.
+>
+> Branch: fix/dashboard-home-permission. Scope: Dockerfile only (and compose if needed). Do NOT touch src/, the deck branch docs/deck, or any rule/engine/advisor code.
+>
+> Fix, minimal and explicit:
+>
+> In the runtime stage, give the app user a real, owned home directory. Change --no-create-home to --create-home (or add mkdir -p /home/app && chown app:app /home/app) so /home/app exists and is owned by app:app.
+> Add ENV HOME=/home/app to the runtime stage so the home path is explicit and not dependent on passwd-fallback behavior under USER app.
+> Optional offline-ethos nicety (only if it's a one-liner and doesn't complicate things): set STREAMLIT_BROWSER_GATHER_USAGE_STATS=false for the dashboard service in docker-compose.yml so the offline tool doesn't attempt telemetry. Note this is NOT the fix — the home dir is — it just suppresses the phone-home.
+> Verify before pushing: build the image, then actually run docker compose up (or make compose-up) and confirm the dashboard starts clean — no PermissionError, the Streamlit server logs "You can now view your Streamlit app", and http://localhost:8501 loads. Paste the relevant dashboard log lines proving a clean boot. CI's docker-build job only proves the image builds, not that the dashboard runs, so the runtime smoke is on you to demonstrate in the report.
+>
+> Standard PR ritual per CLAUDE.md. Conventional Commit: fix: create writable home for app user so the dashboard container boots. Do NOT merge.
