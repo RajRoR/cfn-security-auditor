@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from cfn_auditor.api.observability import install_observability
+from cfn_auditor.api.rate_limit import RateLimitMiddleware
 from cfn_auditor.api.routes import health, rules, scans
 from cfn_auditor.db import create_db_and_tables
 
@@ -39,6 +40,11 @@ def create_app() -> FastAPI:
         version="0.1.0",
         lifespan=_lifespan,
     )
+    # Add the rate limiter before the observability middleware so that the
+    # request-id middleware sits OUTSIDE: scope is stamped first; the
+    # limiter (and any 429 it produces) sees the request-id and the
+    # lifecycle log fires once on the way out.
+    application.add_middleware(RateLimitMiddleware)
     install_observability(application)
     application.include_router(health.router)
     application.include_router(rules.router)

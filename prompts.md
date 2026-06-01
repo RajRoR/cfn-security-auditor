@@ -513,3 +513,23 @@
 > Verify before pushing: build the image, then actually run docker compose up (or make compose-up) and confirm the dashboard starts clean — no PermissionError, the Streamlit server logs "You can now view your Streamlit app", and http://localhost:8501 loads. Paste the relevant dashboard log lines proving a clean boot. CI's docker-build job only proves the image builds, not that the dashboard runs, so the runtime smoke is on you to demonstrate in the report.
 >
 > Standard PR ritual per CLAUDE.md. Conventional Commit: fix: create writable home for app user so the dashboard container boots. Do NOT merge.
+
+---
+
+## Turn 24 — 2026-05-31 · Elapsed 07:35
+
+> We're reopening for ONE small, deliberate hardening PR before the deck: API rate limiting. It's the one secure-API concern we haven't shipped. Keep it small and self-contained — this is API-layer only; do NOT touch the parser, rules, engine, scoring, advisor, or dashboard.
+>
+> Branch: feat/rate-limiting. Constraints, non-negotiable:
+>
+> NO new runtime dependency. This is a single-process app — implement an in-process limiter with the standard library (a per-client fixed-window or token-bucket counter guarded by a lock). Do NOT add slowapi, redis, or any limiter package. If you think a dep is unavoidable, stop and explain why before adding anything.
+> Implement as FastAPI middleware so routes stay untouched (no per-route responses= churn, no OpenAPI schema noise). It must compose with the existing request-id middleware: the 429 response MUST carry the same X-Request-ID (read it from the request scope the request-id middleware stamps) so every response — including throttle rejections — is correlatable.
+> Opt-in, mirroring the optional API key. Add CFN_AUDITOR_ settings to config/settings.py: a request cap and a window in seconds. When the cap is unset/0 the limiter is DISABLED (so dev boots frictionless and the existing test suite is unaffected). Document the new vars in the README env-var table.
+> /health is ALWAYS exempt — the docker-compose dashboard depends on the API healthcheck, so throttling health would break orchestration. Exempt it explicitly.
+> Standards-compliant rejection: HTTP 429 with body {"detail": "Rate limit exceeded. Retry later."} (uniform error envelope — detail only, no template content) AND a Retry-After header (this one IS an IANA-registered header, unlike the WWW-Authenticate we removed in #15). Log one structured WARN line per throttle event via the existing JSON logger — client key + route + status, NO template content.
+> Keying: per client — use the X-API-Key value when present, else request.client.host. Keep it simple and documented.
+> Resilience: the limiter must NEVER take the API down. The 429 is an intentional rejection, not a failure — but if the limiter's own bookkeeping raises, fail OPEN (allow the request) rather than 500. Per the standing fail-open contract.
+>
+> Tests (deterministic — no real sleeps, no wall-clock): inject the clock/time source into the limiter so tests advance it explicitly. Cover: (1) N requests pass then the N+1th in-window gets 429; (2) after the window advances, requests pass again; (3) the 429 carries X-Request-ID, Retry-After, and the {"detail": …} body; (4) /health is never throttled; (5) limiter disabled when unset; (6) two distinct client keys are limited independently. Keep coverage ≥ 85.
+>
+> If you declare 429 anywhere in the schema, regenerate docs/openapi.json via make openapi and keep the openapi smoke test green; if you keep it purely middleware-side (no schema change), leave the spec as-is and say so. Do NOT update docs/AUDIT_TRAIL.md's turn→PR table in this PR — that bookkeeping (and the README "turns 1–20 → PRs #1–#15" caption) folds into the deck/docs turn so this PR stays focused. Standard PR ritual per CLAUDE.md. Commit (feat: rate limiting — per-client window limiter, standards-compliant 429 + Retry-After). Do NOT merge.
