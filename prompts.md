@@ -533,3 +533,35 @@
 > Tests (deterministic — no real sleeps, no wall-clock): inject the clock/time source into the limiter so tests advance it explicitly. Cover: (1) N requests pass then the N+1th in-window gets 429; (2) after the window advances, requests pass again; (3) the 429 carries X-Request-ID, Retry-After, and the {"detail": …} body; (4) /health is never throttled; (5) limiter disabled when unset; (6) two distinct client keys are limited independently. Keep coverage ≥ 85.
 >
 > If you declare 429 anywhere in the schema, regenerate docs/openapi.json via make openapi and keep the openapi smoke test green; if you keep it purely middleware-side (no schema change), leave the spec as-is and say so. Do NOT update docs/AUDIT_TRAIL.md's turn→PR table in this PR — that bookkeeping (and the README "turns 1–20 → PRs #1–#15" caption) folds into the deck/docs turn so this PR stays focused. Standard PR ritual per CLAUDE.md. Commit (feat: rate limiting — per-client window limiter, standards-compliant 429 + Retry-After). Do NOT merge.
+
+---
+
+## Turn 25 — 2026-05-31 · Elapsed 07:55
+
+> Final docs-sync PR. Code and packaging are frozen – docs-only, NO src/ changes, no test changes, no dependency changes. Branch: docs/sync-final-state. The deck (#17) merged before rate limiting (#18), so three docs drifted from reality; bring them back to truth and wire in the dashboard screenshot I've committed at docs/assets/dashboard-overview.png.
+>
+> Step 0 – guard. If docs/assets/dashboard-overview.png is not present on this branch, STOP and report it – do not write embeds that point at a missing file.
+>
+> Step 1 – establish ground truth. Do NOT trust any figure already written in the repo:
+>
+> Run uv run pytest --cov=src --cov-fail-under=85 and read the ACTUAL test count and coverage % off that run.
+> Confirm the merged-PR count from git/GitHub (it is 19: #1–#19) before writing it anywhere.
+> Step 2 – docs/DECK.md:
+>
+> Governance slide: replace "16 merged PRs (#1–#16), 237 tests, 96.33% coverage" with the real current figures – 19 merged PRs (#1–#19) plus the test count and coverage you just measured. No invented numbers.
+> Security-posture slide (slide 7): add a bullet for rate limiting – in-process per-client fixed-window limiter, opt-in via CFN_AUDITOR_RATE_LIMIT_REQUESTS, standards-compliant 429 + Retry-After, /health exempt, fail-open, and the API key hashed in logs so the secret never reaches the log surface – and a one-line note that the dashboard container runs non-root with a writable $HOME (#19).
+> Add a new "Dashboard" slide adjacent to the Live-demo slide, embedding the committed screenshot:
+> ## Dashboard
+>
+> ![w:900](assets/dashboard-overview.png)
+>
+> Visual risk score + gate badge and the per-finding remediation (advice) panel – the same data the API serves, severity-coloured.
+> Reference the PNG at that relative path; do not generate, rename, or move it.
+> En-dash rule holds: grep -c "—" docs/DECK.md must be 0.
+> Step 3 – docs/AUDIT_TRAIL.md: extend the mapping table with the turns that produced #17 (deck), #18 (rate limiting), #19 (docker home fix), and the in-PR redaction fix folded into #18. Change the "this PR" label on the #16 row to its real merged state. Pull the matching prompt entries from prompts.md so turn numbers line up.
+>
+> Step 4 – README.md:
+>
+> Fix the stale caption in Project layout: AUDIT_TRAIL.md ... (turns 1–20 → PRs #1–#15) → the real final span (#1–#19).
+> Embed the same screenshot under the Architecture section: ![Dashboard](docs/assets/dashboard-overview.png) (root-relative path, since README is at repo root).
+> Confirm the screenshot path resolves correctly from BOTH files (assets/… from docs/DECK.md, docs/assets/… from README.md). Re-run ruff / black / mypy / pytest for parity (docs-only ⇒ green). Conventional Commit: docs: sync deck, audit trail, README to final state (#1–#19) + dashboard screenshot. Update prompts.md with this turn in the fixed-header format. Do NOT merge.
