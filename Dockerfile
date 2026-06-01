@@ -31,15 +31,21 @@ FROM python:3.14-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH="/app/.venv/bin:${PATH}"
+    PATH="/app/.venv/bin:${PATH}" \
+    HOME=/home/app
 
 WORKDIR /app
 COPY --from=builder /app /app
 
-# Drop privileges.
+# Drop privileges. The app user MUST have a writable home directory:
+# Streamlit calls expanduser("~") on startup to write its machine-id state
+# file, and an unwritable / missing $HOME crashes the dashboard with
+# PermissionError. uvicorn never touches $HOME so this only manifests in
+# the dashboard service. HOME is also pinned via ENV above so it is not
+# dependent on passwd-fallback behaviour under USER app.
 RUN groupadd --system --gid 1000 app \
-    && useradd --system --uid 1000 --gid app --no-create-home app \
-    && chown -R app:app /app
+    && useradd --system --uid 1000 --gid app --create-home --home-dir /home/app app \
+    && chown -R app:app /app /home/app
 USER app
 
 EXPOSE 8000

@@ -472,3 +472,20 @@
 > Out of scope: any rule/engine/scoring/model/API/advisor/dashboard behavior change; the deck (next turn). No new runtime dependencies (dev/tooling only if unavoidable, pinned + recorded in CLAUDE.md).
 >
 > Tests: if the OpenAPI export is scripted, add a tiny test that the app generates a spec with the expected top-level paths. Otherwise no new tests required (docs/infra). Keep coverage ≥ 85. Standard PR ritual per CLAUDE.md. Commit (docs: README, Docker/Compose, OpenAPI export, MIT license, Makefile, audit trail). Do NOT merge.
+
+---
+
+## Turn 23 — 2026-05-31 · Elapsed 07:25
+
+> Bug in the Docker image from #16: the Streamlit dashboard container crashes on startup with PermissionError: [Errno 13] Permission denied: '/home/app'. Root cause: the runtime stage creates the app user with --no-create-home, so /home/app never exists; USER app doesn't set $HOME, so Streamlit's expanduser("~") resolves to the non-existent, non-writable /home/app and dies trying to write its machine-id state file. The API container is unaffected (uvicorn never touches $HOME); only the dashboard breaks.
+>
+> Branch: fix/dashboard-home-permission. Scope: Dockerfile only (and compose if needed). Do NOT touch src/, the deck branch docs/deck, or any rule/engine/advisor code.
+>
+> Fix, minimal and explicit:
+>
+> In the runtime stage, give the app user a real, owned home directory. Change --no-create-home to --create-home (or add mkdir -p /home/app && chown app:app /home/app) so /home/app exists and is owned by app:app.
+> Add ENV HOME=/home/app to the runtime stage so the home path is explicit and not dependent on passwd-fallback behavior under USER app.
+> Optional offline-ethos nicety (only if it's a one-liner and doesn't complicate things): set STREAMLIT_BROWSER_GATHER_USAGE_STATS=false for the dashboard service in docker-compose.yml so the offline tool doesn't attempt telemetry. Note this is NOT the fix — the home dir is — it just suppresses the phone-home.
+> Verify before pushing: build the image, then actually run docker compose up (or make compose-up) and confirm the dashboard starts clean — no PermissionError, the Streamlit server logs "You can now view your Streamlit app", and http://localhost:8501 loads. Paste the relevant dashboard log lines proving a clean boot. CI's docker-build job only proves the image builds, not that the dashboard runs, so the runtime smoke is on you to demonstrate in the report.
+>
+> Standard PR ritual per CLAUDE.md. Conventional Commit: fix: create writable home for app user so the dashboard container boots. Do NOT merge.
