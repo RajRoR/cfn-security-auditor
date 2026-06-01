@@ -37,6 +37,8 @@ observability: request-id middleware + structured JSON logging on every route
 
 The dashboard speaks **only HTTP** to the API — it never imports the engine, rules, or db. The advisor is **behind a `RemediationProvider` Protocol**, so flipping from the deterministic static provider to the Anthropic LLM is an env-var change with zero UI change.
 
+![Dashboard](docs/assets/dashboard-overview.png)
+
 ## Stack
 
 Python 3.14 · FastAPI · SQLModel · SQLite · pydantic-settings · PyYAML · Streamlit · httpx · Anthropic SDK · pytest · ruff · black · mypy · uv.
@@ -161,7 +163,7 @@ src/cfn_auditor/
   dashboard/   Streamlit client + pure transforms
 docs/
   openapi.json   regenerate via `make openapi`
-  AUDIT_TRAIL.md prompts → PR mapping (turns 1–20 → PRs #1–#15)
+  AUDIT_TRAIL.md prompts → PR mapping (turns 1–26 → PRs #1–#19 + #21)
 tests/         Mirrors src layout; coverage floor 85%
 ```
 

@@ -88,11 +88,14 @@ observability: request-id middleware + structured JSON logs on every route
 
 ## Resilience + security posture
 
-- **Fail-open, never closed.** One unparseable node, one throwing rule, one LLM hiccup – never abort the scan or the advice call.
+- **Fail-open, never closed.** One unparseable node, one throwing rule, one LLM hiccup, one limiter bookkeeping bug – never abort the scan or the advice call.
 - **Error hygiene.** Response bodies and log lines **never** echo template content. Detail messages name the template label and the failure kind only. Regression tests pin this on the parse-failure path and the log surface.
 - **Auth.** Optional `X-API-Key`; `secrets.compare_digest` for constant-time compare; standards-compliant 401 (`{"detail": ...}`, **no** non-standard `WWW-Authenticate: X-API-Key`).
+- **Rate limiting** (PR #18). In-process per-client fixed-window limiter; opt-in via `CFN_AUDITOR_RATE_LIMIT_REQUESTS`; standards-compliant 429 + `Retry-After`; `/health` exempt; bookkeeping errors fail open. The same `X-Request-ID` rides on the 429.
+- **Key redaction** (PR #21). API key hashed (SHA-256, 16-hex-prefix) in the limiter's bucket key and logs, so the raw `X-API-Key` never reaches the log surface (#21).
+- **Hardened container** (PR #19). The dashboard container runs non-root with a writable `$HOME=/home/app` so Streamlit's machine-id state file lands in a directory the unprivileged user actually owns.
 - **Input controls.** YAML loaded only via a `yaml.SafeLoader` subclass (CFN short-tag aware, unknown-tag fallback); 5 MB hard cap on input bytes; billion-laughs documented as a known limitation behind the cap.
-- **Observability.** `X-Request-ID` on every response (200, 401, 404, 500) – generated when absent, propagated when supplied; structured JSON access log line with `request_id` / `method` / `path` / `status_code` / `duration_ms`.
+- **Observability.** `X-Request-ID` on every response (200, 401, 404, 429, 500) – generated when absent, propagated when supplied; structured JSON access log line with `request_id` / `method` / `path` / `status_code` / `duration_ms`.
 
 ---
 
@@ -106,7 +109,15 @@ observability: request-id middleware + structured JSON logs on every route
 - **Traceability.**
   – `prompts.md` – every prompt verbatim, with turn number, date, and cumulative elapsed.
   – `docs/AUDIT_TRAIL.md` – prompt → branch → merged PR mapping.
-  – As-shipped: **16 merged PRs** (#1–#16), **237 tests**, **96.33% coverage** (last-measured on PR #16); coverage floor 85%.
+  – As-shipped: **20 merged PRs** (#1–#19 + #21), **252 tests**, **96.41% coverage** (last-measured on this PR); coverage floor 85%.
+
+---
+
+## Dashboard
+
+![w:900](assets/dashboard-overview.png)
+
+Visual risk score + gate badge and the per-finding remediation (advice) panel – the same data the API serves, severity-coloured.
 
 ---
 
