@@ -475,23 +475,27 @@
 
 ---
 
-## Turn 22 — 2026-05-31 · Elapsed 07:05
+## Turn 22 — 2026-05-31 · Elapsed 06:50
 
-> We're reopening for ONE small, deliberate hardening PR before the deck: API rate limiting. It's the one secure-API concern we haven't shipped. Keep it small and self-contained — this is API-layer only; do NOT touch the parser, rules, engine, scoring, advisor, or dashboard.
+> PR #16 merged — thanks. Code and packaging are frozen. This is the presentation deck: a docs-only PR, NO src/ changes. If you find yourself editing anything under src/cfn_auditor/, stop — it doesn't belong here.
 >
-> Branch: feat/rate-limiting. Constraints, non-negotiable:
+> Branch: docs/deck. Deliver the deck as a committed Markdown file (docs/DECK.md) authored in Marp-compatible slide syntax (--- slide breaks, plain Markdown — do NOT add Marp, reveal.js, or any renderer as a dependency; the file must read cleanly as plain Markdown on GitHub and ALSO render if someone runs Marp later). No new runtime or dev dependencies.
 >
-> NO new runtime dependency. This is a single-process app — implement an in-process limiter with the standard library (a per-client fixed-window or token-bucket counter guarded by a lock). Do NOT add slowapi, redis, or any limiter package. If you think a dep is unavoidable, stop and explain why before adding anything.
-> Implement as FastAPI middleware so routes stay untouched (no per-route responses= churn, no OpenAPI schema noise). It must compose with the existing request-id middleware: the 429 response MUST carry the same X-Request-ID (read it from the request scope the request-id middleware stamps) so every response — including throttle rejections — is correlatable.
-> Opt-in, mirroring the optional API key. Add CFN_AUDITOR_ settings to config/settings.py: a request cap and a window in seconds. When the cap is unset/0 the limiter is DISABLED (so dev boots frictionless and the existing test suite is unaffected). Document the new vars in the README env-var table.
-> /health is ALWAYS exempt — the docker-compose dashboard depends on the API healthcheck, so throttling health would break orchestration. Exempt it explicitly.
-> Standards-compliant rejection: HTTP 429 with body {"detail": "Rate limit exceeded. Retry later."} (uniform error envelope — detail only, no template content) AND a Retry-After header (this one IS an IANA-registered header, unlike the WWW-Authenticate we removed in #15). Log one structured WARN line per throttle event via the existing JSON logger — client key + route + status, NO template content.
-> Keying: per client — use the X-API-Key value when present, else request.client.host. Keep it simple and documented.
-> Resilience: the limiter must NEVER take the API down. The 429 is an intentional rejection, not a failure — but if the limiter's own bookkeeping raises, fail OPEN (allow the request) rather than 500. Per the standing fail-open contract.
+> Audience: a hiring panel evaluating an FDE/GenAI candidate. The deck's spine is the Solutions Architect + human-in-the-loop story, evidenced by what actually shipped — not aspirations. Every claim must trace to something real on main (a PR, a file, a test, the audit trail). Do NOT invent metrics, benchmarks, customer numbers, or features that aren't in the repo.
 >
-> Tests (deterministic — no real sleeps, no wall-clock): inject the clock/time source into the limiter so tests advance it explicitly. Cover: (1) N requests pass then the N+1th in-window gets 429; (2) after the window advances, requests pass again; (3) the 429 carries X-Request-ID, Retry-After, and the {"detail": …} body; (4) /health is never throttled; (5) limiter disabled when unset; (6) two distinct client keys are limited independently. Keep coverage ≥ 85.
+> Slides (one concept each, tight):
 >
-> If you declare 429 anywhere in the schema, regenerate docs/openapi.json via make openapi and keep the openapi smoke test green; if you keep it purely middleware-side (no schema change), leave the spec as-is and say so. Do NOT update docs/AUDIT_TRAIL.md's turn→PR table in this PR — that bookkeeping (and the README "turns 1–20 → PRs #1–#15" caption) folds into the deck/docs turn so this PR stays focused. Standard PR ritual per CLAUDE.md. Commit (feat: rate limiting — per-client window limiter, standards-compliant 429 + Retry-After). Do NOT merge.
+> Title — what it is in one line: API-first static security guardrail auditor for CloudFormation, offline, pre-deploy gate.
+> Problem — misconfigured CFN reaches AWS; cost/latency/credential friction of live scanning; the case for static + reproducible.
+> Architecture — the parser → rules → engine → persist → score → API → dashboard flow, plus the advisor and observability layers. Reuse the README diagram; the dashboard speaks only HTTP.
+> The rule engine — auto-registering rules, 10 guardrails across S3/SG/IAM/RDS/EC2/CloudTrail, the intrinsic-aware "no findings on unresolved intrinsics; fire only on proven insecurity or absence" contract.
+> Scoring + gate — deterministic score/grade/pass-fail, compute-on-read.
+> The GenAI angle — the AI Remediation Advisor: RemediationProvider Protocol, static default, Anthropic + in-repo RAG opt-in, fail-open at both construction and per-finding levels, source provenance. This is the headline GenAI slide.
+> Resilience + security posture — fail-open scanning (one bad node/rule never stops the scan), error hygiene (responses and logs never echo template content), optional constant-time API key, standards-compliant 401, observability (request-id on every response + structured JSON logs).
+> Engineering governance / human-in-the-loop — the "Claude never merges" contract, one prompt → one branch → one PR, CI merge gate (ruff/black/mypy + 85% coverage floor), the prompts.md + AUDIT_TRAIL.md traceability story. Cite the real PR count (#1–#16) and ~237 tests / ~96% coverage as last measured — do NOT round up or embellish.
+> Live demo script — the exact commands a reviewer runs: compose up, POST a sample template, read score/findings, GET advice, show the request-id correlation. Mirror the README quickstart so they match.
+> Closing — what an FDE takes from this: contract-first, resilient-by-default, AI-as-implementer-under-human-control. Pointer to the repo + audit trail.
+> Keep slides terse (bullets, not prose). Use "–" (en-dash), never "—". Numbers must match reality — if you cite test count or coverage, pull the real figure; if unsure, state the floor (85%) rather than guess. No new tests required (docs-only); coverage unaffected. Standard PR ritual per CLAUDE.md. Commit (docs: presentation deck). Do NOT merge.
 
 ---
 
@@ -509,3 +513,23 @@
 > Verify before pushing: build the image, then actually run docker compose up (or make compose-up) and confirm the dashboard starts clean — no PermissionError, the Streamlit server logs "You can now view your Streamlit app", and http://localhost:8501 loads. Paste the relevant dashboard log lines proving a clean boot. CI's docker-build job only proves the image builds, not that the dashboard runs, so the runtime smoke is on you to demonstrate in the report.
 >
 > Standard PR ritual per CLAUDE.md. Conventional Commit: fix: create writable home for app user so the dashboard container boots. Do NOT merge.
+
+---
+
+## Turn 24 — 2026-05-31 · Elapsed 07:35
+
+> We're reopening for ONE small, deliberate hardening PR before the deck: API rate limiting. It's the one secure-API concern we haven't shipped. Keep it small and self-contained — this is API-layer only; do NOT touch the parser, rules, engine, scoring, advisor, or dashboard.
+>
+> Branch: feat/rate-limiting. Constraints, non-negotiable:
+>
+> NO new runtime dependency. This is a single-process app — implement an in-process limiter with the standard library (a per-client fixed-window or token-bucket counter guarded by a lock). Do NOT add slowapi, redis, or any limiter package. If you think a dep is unavoidable, stop and explain why before adding anything.
+> Implement as FastAPI middleware so routes stay untouched (no per-route responses= churn, no OpenAPI schema noise). It must compose with the existing request-id middleware: the 429 response MUST carry the same X-Request-ID (read it from the request scope the request-id middleware stamps) so every response — including throttle rejections — is correlatable.
+> Opt-in, mirroring the optional API key. Add CFN_AUDITOR_ settings to config/settings.py: a request cap and a window in seconds. When the cap is unset/0 the limiter is DISABLED (so dev boots frictionless and the existing test suite is unaffected). Document the new vars in the README env-var table.
+> /health is ALWAYS exempt — the docker-compose dashboard depends on the API healthcheck, so throttling health would break orchestration. Exempt it explicitly.
+> Standards-compliant rejection: HTTP 429 with body {"detail": "Rate limit exceeded. Retry later."} (uniform error envelope — detail only, no template content) AND a Retry-After header (this one IS an IANA-registered header, unlike the WWW-Authenticate we removed in #15). Log one structured WARN line per throttle event via the existing JSON logger — client key + route + status, NO template content.
+> Keying: per client — use the X-API-Key value when present, else request.client.host. Keep it simple and documented.
+> Resilience: the limiter must NEVER take the API down. The 429 is an intentional rejection, not a failure — but if the limiter's own bookkeeping raises, fail OPEN (allow the request) rather than 500. Per the standing fail-open contract.
+>
+> Tests (deterministic — no real sleeps, no wall-clock): inject the clock/time source into the limiter so tests advance it explicitly. Cover: (1) N requests pass then the N+1th in-window gets 429; (2) after the window advances, requests pass again; (3) the 429 carries X-Request-ID, Retry-After, and the {"detail": …} body; (4) /health is never throttled; (5) limiter disabled when unset; (6) two distinct client keys are limited independently. Keep coverage ≥ 85.
+>
+> If you declare 429 anywhere in the schema, regenerate docs/openapi.json via make openapi and keep the openapi smoke test green; if you keep it purely middleware-side (no schema change), leave the spec as-is and say so. Do NOT update docs/AUDIT_TRAIL.md's turn→PR table in this PR — that bookkeeping (and the README "turns 1–20 → PRs #1–#15" caption) folds into the deck/docs turn so this PR stays focused. Standard PR ritual per CLAUDE.md. Commit (feat: rate limiting — per-client window limiter, standards-compliant 429 + Retry-After). Do NOT merge.
