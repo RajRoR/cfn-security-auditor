@@ -598,3 +598,15 @@
 > 3. Any other figure in docs/DECK.md or README.md still citing 96.40 → update to the measured 96.41. Leave the PR-count text as #1–#19 (PR #21 is a follow-up the docs reference but the merged-on-main deck count at submission is your call – state which you used).
 >
 > Re-run ruff / black / mypy / pytest for parity (docs-only ⇒ green). Confirm grep -c "—" docs/DECK.md is still 0 (en-dashes only). Update prompts.md with this turn in the fixed-header format. Conventional Commit: docs: correct audit trail + deck to reflect merged key redaction (#21). Do NOT merge.
+
+---
+
+## Turn 28 — 2026-05-31 · Elapsed 08:25
+
+> Tiny docs-only correction PR. Branch: docs/final-count-truth. NO src/, test, or dependency changes. All PRs #1–#21 are now merged to main, which makes two self-referential lines in the docs off-by-one. Fix exactly these two, nothing else:
+>
+> 1. docs/AUDIT_TRAIL.md – the Turn 25 / docs/sync-final-state row currently has _this PR_ in the PR column. That PR merged as #20. Replace _this PR_ with #20.
+>
+> 2. docs/DECK.md – the governance slide reads 20 merged PRs (#1–#19 + #21). With #20 now merged, the true total is 21. Change it to 21 merged PRs (#1–#21). Leave the test/coverage figures (252 / 96.41%) untouched – they're still correct.
+>
+> Do not touch any other figure, the screenshot, or src/. Confirm grep -c "—" docs/DECK.md is still 0 (en-dashes only). Re-run ruff / black / mypy / pytest --cov=src --cov-fail-under=85 for parity (docs-only ⇒ green). Update prompts.md with this turn in the fixed-header format. Conventional Commit: docs: correct merged-PR count and self-reference now that #1-#21 are on main. Do NOT merge.

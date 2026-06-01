@@ -45,7 +45,7 @@ back to the prompt that asked for it.
 | 24   | `feat/rate-limiting`            | #18   | feat: rate limiting - per-client window limiter, standards-compliant 429 + Retry-After                                                        |
 | 23   | `fix/dashboard-home-permission` | #19   | fix: create writable home for app user so the dashboard container boots                                                                       |
 | 26   | `fix/rate-limiter-key-redaction`| #21   | fix: hash api-key in rate-limiter client key so secrets never reach logs                                                                      |
-| 25   | `docs/sync-final-state`         | _this PR_ | docs: sync deck, audit trail, README to final state (#1-#19 + #21) + dashboard screenshot                                                  |
+| 25   | `docs/sync-final-state`         | #20   | docs: sync deck, audit trail, README to final state (#1-#19 + #21) + dashboard screenshot                                                     |
 
 Turns 3, 4, 6, and 8 land as additional commits inside an already-open PR
 because the human asked for them as in-PR review fixes before approving the

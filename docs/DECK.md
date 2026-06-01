@@ -109,7 +109,7 @@ observability: request-id middleware + structured JSON logs on every route
 - **Traceability.**
   – `prompts.md` – every prompt verbatim, with turn number, date, and cumulative elapsed.
   – `docs/AUDIT_TRAIL.md` – prompt → branch → merged PR mapping.
-  – As-shipped: **20 merged PRs** (#1–#19 + #21), **252 tests**, **96.41% coverage** (last-measured on this PR); coverage floor 85%.
+  – As-shipped: **21 merged PRs** (#1–#21), **252 tests**, **96.41% coverage** (last-measured on this PR); coverage floor 85%.
 
 ---
 
